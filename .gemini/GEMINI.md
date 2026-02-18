@@ -1,50 +1,58 @@
-# Hackathon Project: [Project Name]
+# Alumni Project
 
 ## Project Overview
 
-*   **Goal:** [Briefly describe the purpose and target problem of the project.]
-*   **Technologies:** [List the main technologies, e.g., React, TypeScript, FastAPI, etc.]
-*   **Architecture:** [Mention the high-level architecture, e.g., Monolith, Microservices, Serverless, etc.]
+*   **Goal:** Build a community platform for alumni, staff, and admins.
+*   **Technologies:** Next.js 15, React 19, Supabase, Tailwind CSS 4, TypeScript.
+*   **Architecture:** Role-based App Router structure with Supabase RLS.
 
 ## Building and Running
 
 ### Prerequisites
-*   [e.g., Node.js >= 18, Python >= 3.10, Docker, etc.]
+*   Node.js >= 18
+*   pnpm >= 9
 
 ### Installation
 ```bash
-# TODO: Add installation commands (e.g., npm install, pip install -r requirements.txt)
+cd web
+pnpm install
 ```
 
 ### Running Locally
 ```bash
-# TODO: Add commands to run the application (e.g., npm start, python main.py)
+cd web
+pnpm dev
 ```
 
 ### Testing
 ```bash
-# TODO: Add commands to run tests (e.g., npm test, pytest)
+cd web
+pnpm test
 ```
 
 ## Development Conventions
 
-*   **Coding Style:** [e.g., Follow ESLint/Prettier, follow PEP8, use descriptive naming, etc.]
-*   **Git Strategy:** [e.g., Feature branches, descriptive commit messages, PRs for all changes.]
-*   **Testing:** [e.g., TDD, write unit tests for all new logic, minimum 80% coverage.]
+*   **Coding Style:** Follow ESLint/Prettier, use descriptive naming.
+*   **Git Strategy:** Feature branches, descriptive commit messages.
+*   **Testing:** Add unit tests for new logic, verify UI changes manually.
+*   **Supabase:** All data access must respect RLS. Use `src/lib/supabase/server.ts` for RSC and `client.ts` for Client Components.
+*   **Styling:** Use Tailwind CSS 4 with the new CSS-based configuration. Prefer the `cn()` utility for conditional classes.
 
 ## Project Plan & Milestones
 
-1.  **Phase 1: Research & Design**
-    *   [ ] Define core features and user flow.
-    *   [ ] Design the database schema and API endpoints.
-2.  **Phase 2: MVP Development**
-    *   [ ] Implement basic UI components.
-    *   [ ] Build the backend API for core functionality.
-3.  **Phase 3: Testing & Refinement**
-    *   [ ] Write comprehensive tests.
+1.  **Phase 1: Setup & Core Infrastructure** (DONE)
+    *   [x] Initialize Next.js 15, Supabase, Tailwind 4.
+    *   [x] Set up database schema (Profiles, Jobs, Events).
+    *   [x] Implement role-based route structure.
+2.  **Phase 2: Authentication & Profiles**
+    *   [ ] Implement Login/Signup.
+    *   [ ] Build Profile management.
+3.  **Phase 3: Jobs & Events**
+    *   [ ] Implement Job board.
+    *   [ ] Build Event management.
+4.  **Phase 4: Admin & Refinement**
+    *   [ ] Create Admin dashboard.
     *   [ ] Refine UI/UX and fix bugs.
-4.  **Phase 4: Final Presentation**
-    *   [ ] Prepare demo and documentation.
 
 ---
 
