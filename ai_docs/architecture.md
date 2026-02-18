@@ -1,4 +1,4 @@
-# Architecture JumpBoard v3
+# Architecture Alumni Platform
 
 ## Stack Technique
 
@@ -8,81 +8,56 @@
 | Styling | Tailwind CSS 4 |
 | UI Components | Radix UI + shadcn/ui patterns |
 | Backend | Supabase (PostgreSQL 15 + Auth + Realtime) |
-| Edge Functions | Supabase Edge Functions (Deno) |
-| Messaging | WhatsApp Business API (Twilio) |
-| AI | Groq API (llama-3.1-8b-instant) |
-| Maps | Leaflet + react-leaflet |
 
 ## Structure des Dossiers
 
 ```
-jumpboard-v3-whatsapp/
-├── web/                          # App Next.js
+alumni-platform/
+├── web/                          # Application Next.js
 │   ├── src/
-│   │   ├── app/                  # App Router pages
-│   │   │   ├── api/              # API routes
-│   │   │   ├── employee/         # Portal employé (dark theme)
-│   │   │   ├── manager/          # Dashboard manager (light theme)
-│   │   │   ├── superadmin/       # Portal DRH (dark theme)
-│   │   │   └── admin/            # Dashboard admin
+│   │   ├── app/                  # App Router (Groupes par rôle)
+│   │   │   ├── (auth)/           # Connexion / Inscription
+│   │   │   ├── (alumni)/         # Portail Alumni
+│   │   │   ├── (staff)/          # Dashboard Staff
+│   │   │   └── (admin)/          # Dashboard Admin
 │   │   ├── components/
-│   │   │   ├── ui/               # Composants Radix UI
-│   │   │   ├── layout/           # Sidebar, navigation
-│   │   │   ├── manager/          # Composants manager
-│   │   │   ├── superadmin/       # Composants DRH (map, panels)
-│   │   │   └── analytics/        # Charts
+│   │   │   ├── ui/               # Primitives (shadcn)
+│   │   │   ├── layout/           # Navigation, Sidebars
+│   │   │   └── shared/           # Composants réutilisables
 │   │   ├── lib/
-│   │   │   ├── supabase/         # Clients Supabase
-│   │   │   ├── services/         # Business logic
-│   │   │   └── data/             # Données statiques
-│   │   └── types/                # TypeScript definitions
-│   └── public/
-│       └── geo/                  # GeoJSON pour cartes
+│   │   │   ├── supabase/         # Clients Supabase (client, server, middleware)
+│   │   │   ├── services/         # Logique métier et IA
+│   │   │   └── utils.ts          # Utilitaires (cn, etc.)
+│   │   └── types/                # Définitions TypeScript
+│   └── public/                   # Assets statiques
 ├── supabase/
-│   ├── migrations/               # SQL migrations
-│   ├── functions/                # Edge Functions
+│   ├── migrations/               # Migrations SQL (RLS, Schéma)
 │   └── seed/                     # Données de test
-└── ai_docs/                      # Documentation IA (ce dossier)
+└── ai_docs/                      # Documentation pour les agents (ce dossier)
 ```
 
-## Portails par Rôle
+## Accès par Rôle
 
-| Rôle | Route | Theme | Scope |
-|------|-------|-------|-------|
-| Employee | `/employee/*` | Dark | Son organisation |
-| Manager | `/manager/*` | Light | Son organisation |
-| Admin | `/admin/*` | - | Son organisation |
-| SuperAdmin (DRH) | `/superadmin/*` | Dark | Toute l'entreprise (multi-sites) |
-
-## Multi-Tenant Architecture
-
-```
-Company (ex: "Camping Group France")
-  ├── Organization/Site 1: "Camping Les Pins"
-  │     ├── Teams
-  │     ├── Users (employees, managers, admin)
-  │     └── Data (onboardings, tickets, etc.)
-  ├── Organization/Site 2: "Village Vacances du Lac"
-  └── Organization/Site 3: ...
-
-SuperAdmin → Accès à tous les sites de sa Company
-Autres rôles → Accès uniquement à leur Organization
-```
+| Rôle | Route | Scope |
+|------|-------|-------|
+| Alumni | `/(alumni)/*` | Consultation jobs/events, gestion profil |
+| Staff | `/(staff)/*` | Gestion des jobs et événements |
+| Admin | `/(admin)/*` | Administration globale et rôles |
 
 ## Sécurité (RLS)
 
-Toutes les tables ont des Row Level Security policies qui utilisent :
-- `public.user_organization_id()` - ID de l'organisation du user
-- `public.user_company_id()` - ID de l'entreprise (pour SuperAdmins)
-- `public.user_role()` - Rôle du user
+Toutes les tables utilisent Row Level Security (RLS) basé sur `auth.uid()` et le rôle défini dans la table `profiles`.
 
 Pattern de policy standard :
 ```sql
-CREATE POLICY "table_select" ON table_name
-  FOR SELECT USING (
-    organization_id = public.user_organization_id() OR
-    (public.user_role() = 'superadmin' AND organization_id IN (
-      SELECT id FROM organizations WHERE company_id = public.user_company_id()
-    ))
+CREATE POLICY "view_policy" ON table_name
+  FOR SELECT USING (true); -- Souvent ouvert aux connectés
+
+CREATE POLICY "modify_policy" ON table_name
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND (role = 'staff' OR role = 'admin')
+    )
   );
 ```

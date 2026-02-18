@@ -1,103 +1,99 @@
-# Patterns de Code JumpBoard
+# Patterns de Code Alumni
 
 ## Server Components (Pattern Principal)
 
-Toutes les pages protégées suivent ce pattern :
+Pages protégées avec vérification du rôle via la table `profiles` :
 
 ```typescript
-// app/[role]/[page]/page.tsx
+// app/(alumni)/dashboard/page.tsx
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
-export default async function Page() {
+export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
 
-  // Récupérer les données user avec son organisation
-  const { data: userData } = await supabase
-    .from('users')
-    .select('*, organizations(*)')
+  // Récupérer le profil et le rôle
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
     .eq('id', user.id)
     .single()
 
-  // Vérifier le rôle
-  if (userData.role !== 'expected_role') redirect('/login')
+  if (profile?.role !== 'alumni') redirect('/unauthorized')
 
-  // Fetch des données (RLS appliqué automatiquement)
-  const { data } = await supabase
-    .from('table')
-    .select('*')
+  // Fetch des données spécifiques
+  const { data: jobs } = await supabase.from('jobs').select('*').limit(5)
 
-  return <Component data={data} />
+  return <Dashboard profile={profile} recentJobs={jobs} />
 }
 ```
 
 ## Supabase Clients
 
-### Server Components / Server Actions
+L'accès aux clients est centralisé dans `src/lib/supabase/`.
+
+### RSC / Server Actions
 ```typescript
 import { createClient } from '@/lib/supabase/server'
-
 const supabase = await createClient()
 ```
 
 ### Client Components
 ```typescript
-import { createBrowserClient } from '@supabase/ssr'
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { createClient } from '@/lib/supabase/client'
+const supabase = createClient()
 ```
 
-## Server Actions
+## Server Actions (Mutations)
 
-Pour les mutations simples, utiliser des Server Actions :
+Utiliser pour les actions de formulaire ou interactions côté serveur :
 
 ```typescript
-// app/[role]/[page]/actions.ts
+// app/(alumni)/profile/actions.ts
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-export async function updateSomething(id: string, data: Partial<Something>) {
+export async function updateProfile(data: Partial<Profile>) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) throw new Error('Unauthorized')
 
   const { error } = await supabase
-    .from('table')
+    .from('profiles')
     .update(data)
-    .eq('id', id)
+    .eq('id', user.id)
 
   if (error) throw error
-
-  revalidatePath('/path/to/revalidate')
+  
+  revalidatePath('/profile')
 }
 ```
 
 ## UI Components avec CVA
 
-Pattern pour les composants avec variants :
+Pattern utilisé pour les composants de base (ex: `Button`) :
 
 ```typescript
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
-const componentVariants = cva(
-  "base-classes",
+const buttonVariants = cva(
+  "base-styles",
   {
     variants: {
       variant: {
-        default: "default-classes",
-        secondary: "secondary-classes",
+        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+        destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
       },
       size: {
-        default: "size-default",
-        sm: "size-sm",
-        lg: "size-lg",
+        default: "h-9 px-4 py-2",
+        sm: "h-8 rounded-md px-3 text-xs",
       },
     },
     defaultVariants: {
@@ -106,72 +102,17 @@ const componentVariants = cva(
     },
   }
 )
-
-interface ComponentProps
-  extends React.HTMLAttributes<HTMLElement>,
-    VariantProps<typeof componentVariants> {}
-
-export function Component({ className, variant, size, ...props }: ComponentProps) {
-  return (
-    <div className={cn(componentVariants({ variant, size, className }))} {...props} />
-  )
-}
 ```
 
-## Loading States
+## Gestion des Classes (Tailwind 4)
 
-Chaque page doit avoir un `loading.tsx` :
-
-```typescript
-// app/[role]/[page]/loading.tsx
-import { Skeleton } from "@/components/ui/skeleton"
-
-export default function Loading() {
-  return (
-    <div className="p-6 space-y-4">
-      <Skeleton className="h-8 w-48" />
-      <Skeleton className="h-64 w-full" />
-    </div>
-  )
-}
-```
-
-## API Routes
-
-Pour les opérations complexes ou qui nécessitent le service role :
-
-```typescript
-// app/api/resource/route.ts
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
-
-export async function POST(request: Request) {
-  const supabase = await createClient()
-
-  // Vérifier l'auth
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const body = await request.json()
-
-  // ... logique
-
-  return NextResponse.json({ success: true, data })
-}
-```
-
-## Conditional Classes
-
-Toujours utiliser `cn()` de `@/lib/utils` :
+Toujours utiliser la fonction utilitaire `cn` :
 
 ```typescript
 import { cn } from "@/lib/utils"
 
 <div className={cn(
-  "base-class",
-  isActive && "active-class",
-  variant === "dark" ? "dark-classes" : "light-classes"
+  "p-4 border rounded-lg",
+  isActive ? "bg-accent text-accent-foreground" : "bg-card"
 )} />
 ```
