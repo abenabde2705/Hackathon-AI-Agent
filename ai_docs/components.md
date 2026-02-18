@@ -1,119 +1,57 @@
-# Composants UI JumpBoard
+# Composants UI Alumni
 
 ## Organisation
 
 ```
-components/
-├── ui/                 # Primitives Radix UI (shadcn style)
-├── layout/             # Sidebar, navigation
-├── manager/            # Composants spécifiques manager
-├── superadmin/         # Composants DRH (map, panels)
-├── analytics/          # Charts et visualisations
-├── icons/              # Icônes custom SVG
-└── providers/          # Context providers
+web/src/components/
+├── ui/                 # Primitives (shadcn/ui style)
+├── layout/             # Navigation, Sidebars, Footers
+├── shared/             # Composants réutilisables
+└── [role]/             # Composants spécifiques (alumni, staff, admin)
 ```
 
 ## Composants UI Disponibles
 
+Les composants de base sont localisés dans `src/components/ui/`.
+
 | Composant | Path | Usage |
 |-----------|------|-------|
-| `Button` | `ui/button.tsx` | Boutons avec variants |
-| `Card` | `ui/card.tsx` | Conteneurs |
-| `Badge` | `ui/badge.tsx` | Labels/tags |
-| `Dialog` | `ui/dialog.tsx` | Modales |
-| `Input` | `ui/input.tsx` | Champs texte |
-| `Select` | `ui/select.tsx` | Dropdowns |
-| `Skeleton` | `ui/skeleton.tsx` | Loading states |
-| `Avatar` | `ui/avatar.tsx` | Photos profil |
-| `DropdownMenu` | `ui/dropdown-menu.tsx` | Menus contextuels |
-| `Pagination` | `ui/pagination.tsx` | Navigation pages |
+| `Button` | `ui/button.tsx` | Boutons avec variants (CVA) |
+| `Card` | `ui/card.tsx` | Conteneurs (Header, Content, Footer) |
+| `Input` | `ui/input.tsx` | Champs de saisie texte |
 
-## Button Variants
+## Conventions de Stylisation (Tailwind 4)
 
+- **Variables CSS** : Définies dans `src/app/globals.css` (ex: `--primary`, `--background`).
+- **Variants** : Utiliser `class-variance-authority` (CVA) pour les états complexes.
+- **Utilitaire `cn`** : Pour fusionner les classes Tailwind proprement.
+
+### Exemple de Button
 ```typescript
-// Variants disponibles
-variant: 'default' | 'secondary' | 'ghost' | 'ghost-dark' | 'ghost-light' |
-         'destructive' | 'outline' | 'link' | 'primary'
+import { Button } from "@/components/ui/button"
 
-// Tailles
-size: 'default' | 'sm' | 'lg' | 'xl' | 'icon' | 'icon-sm' | 'icon-lg'
-
-// Usage
-<Button variant="primary" size="lg">Action principale</Button>
-<Button variant="ghost-dark">Sur fond sombre</Button>
-<Button variant="destructive" size="sm">Supprimer</Button>
+<Button variant="primary" size="lg">Se connecter</Button>
+<Button variant="outline" size="sm">Annuler</Button>
 ```
 
-## Sidebar
-
-Le composant `Sidebar` est unifié pour employee et manager :
-
+### Exemple de Card
 ```typescript
-import { Sidebar } from '@/components/layout/sidebar'
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 
-<Sidebar
-  variant="employee" // ou "manager"
-  user={{ full_name, email, avatar_url }}
-  organizationName="Camping Les Pins"
-/>
+<Card>
+  <CardHeader>
+    <CardTitle>Nouveau Job</CardTitle>
+  </CardHeader>
+  <CardContent>
+    Détails du poste...
+  </CardContent>
+</Card>
 ```
 
-## Charts (Analytics)
-
+## Icons
+Utiliser `lucide-react` pour toutes les icônes de l'interface.
 ```typescript
-// Trust Score avec courbe
-import { TrustScoreChart } from '@/components/analytics/TrustScoreChart'
+import { User, LogOut } from "lucide-react"
 
-// Progress circulaire
-import { ProgressRing } from '@/components/analytics/progress-ring'
-<ProgressRing value={75} label="Completion" trend={+5} />
-
-// Retention
-import { RetentionChart } from '@/components/analytics/retention-chart'
-<RetentionChart data={data} variant="warning" />
-
-// Time Range
-import { TimeRangeSelector } from '@/components/analytics/TimeRangeSelector'
+<User className="size-4" />
 ```
-
-## SuperAdmin Components
-
-```typescript
-// Carte interactive France
-import { FranceMap } from '@/components/superadmin/FranceMap'
-
-// Panel détail site
-import { SiteDetailPanel } from '@/components/superadmin/SiteDetailPanel'
-
-// Sélecteur de site
-import { SiteSelector } from '@/components/superadmin/SiteSelector'
-
-// Header DRH
-import { DRHHeader } from '@/components/superadmin/DRHHeader'
-```
-
-## Manager Components
-
-```typescript
-// Header unifié
-import { ManagerHeader } from '@/components/manager/ManagerHeader'
-
-// Actions collaborateur (dropdown)
-import { CollaborateurActions } from '@/components/manager/CollaborateurActions'
-
-// Modales
-import { AddCollaborateurModal } from '@/components/manager/AddCollaborateurModal'
-import { EditCollaborateurModal } from '@/components/manager/EditCollaborateurModal'
-import { ViewProfileModal } from '@/components/manager/ViewProfileModal'
-
-// Quick Actions
-import { QuickActionsCard } from '@/components/manager/QuickActionsCard'
-```
-
-## Conventions
-
-1. **Imports** : Toujours utiliser `@/` pour les paths absolus
-2. **cn()** : Utiliser pour combiner les classes Tailwind
-3. **forwardRef** : Pour les composants qui wrappent des éléments natifs
-4. **Variants** : Utiliser CVA pour les composants avec plusieurs styles
-5. **Dark mode** : Supporter avec les classes `dark:` de Tailwind

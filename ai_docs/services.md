@@ -1,122 +1,39 @@
-# Services JumpBoard
+# Services Alumni
 
-## Services Disponibles
+## Services IA (Prévisionnels)
 
-| Service | Path | Description |
-|---------|------|-------------|
-| Jumpy | `lib/services/jumpy.ts` | Assistant IA HR |
-| WhatsApp | `lib/services/whatsapp.ts` | Envoi de messages |
-| Twilio | `lib/services/twilio.ts` | Client Twilio |
+Le projet Alumni intègre des capacités d'IA pour améliorer l'expérience utilisateur, notamment via l'API Groq (Llama 3).
 
-## Jumpy (AI Assistant)
+| Service | Description | Path (Prévu) |
+|---------|-------------|--------------|
+| `ProfileOptimizer` | Analyse et suggère des améliorations pour le profil Alumni | `lib/services/ai/profile.ts` |
+| `JobMatcher` | Recommande des offres d'emploi en fonction du profil | `lib/services/ai/matcher.ts` |
+| `AlumniAssistant` | Assistant conversationnel pour répondre aux questions sur le réseau | `lib/services/ai/assistant.ts` |
 
-### Web Platform
-```typescript
-import { streamJumpyResponse, searchHRDocumentation } from '@/lib/services/jumpy'
+## Intégration IA
 
-// Recherche dans la doc HR
-const relevantDocs = await searchHRDocumentation(query)
-
-// Stream la réponse
-const stream = await streamJumpyResponse(messages, context)
-```
-
-### API Endpoint
-```
-POST /api/jumpy/chat
-Content-Type: application/json
-
-{
-  "messages": [{ "role": "user", "content": "..." }],
-  "conversationId": "uuid" // optionnel
-}
-
-Response: ReadableStream (SSE)
-```
-
-### WhatsApp Jumpy
-Via Edge Function `supabase/functions/whatsapp-webhook/index.ts`
-- Conversation memory (5 derniers messages)
-- Suggestions automatiques
-- Commande: `jumpy [question]`
-
-## WhatsApp Service
+### Configuration Groq
+L'IA utilise le modèle `llama-3.1-8b-instant` via Groq pour des réponses rapides et précises.
 
 ```typescript
-import {
-  sendWelcomeMessage,
-  sendOnboardingProgressMessage,
-  sendTicketUpdateMessage,
-  sendEventReminderMessage
-} from '@/lib/services/whatsapp'
+// Exemple d'appel service (prévisionnel)
+import { generateProfileSuggestions } from '@/lib/services/ai/profile'
 
-// Envoi message de bienvenue
-await sendWelcomeMessage('+33612345678', 'Jean Dupont', 'Camping Les Pins')
-
-// Mise à jour onboarding
-await sendOnboardingProgressMessage('+33612345678', 'Jean', 75)
-
-// Update ticket
-await sendTicketUpdateMessage('+33612345678', 'TICK-123', 'resolved', 'Résolu par...')
+const suggestions = await generateProfileSuggestions(profileData)
 ```
 
-## WhatsApp Commands (Edge Function)
-
-| Commande | Action |
-|----------|--------|
-| `jumpy [question]` | Question à l'IA |
-| `jumpy historique` | Voir les 5 dernières questions |
-| `ticket [desc]` | Créer un ticket |
-| `tickets` | Lister les tickets (manager) |
-| `#<id>` | Ouvrir un ticket |
-| `progression` | Voir la progression onboarding |
-| `faq` / `aide` / `?` | Aide |
-
-## HR Documentation
-
-```typescript
-// lib/data/hr-documentation.ts
-interface HRDocument {
-  id: string
-  title: string
-  category: string
-  keywords: string[]
-  content: string
-}
-
-// Catégories disponibles
-- 'contrat'
-- 'conges'
-- 'salaire'
-- 'securite'
-- 'formation'
-- ...
-```
-
-## Environment Variables
+## Variables d'Environnement
 
 ```env
-# Groq (Jumpy AI)
+# Groq API (AI Services)
 GROQ_API_KEY=gsk_...
 
-# Twilio (WhatsApp)
-TWILIO_ACCOUNT_SID=AC...
-TWILIO_AUTH_TOKEN=...
-TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ```
 
-## Edge Functions
+## Services Externes (À venir)
 
-Les Edge Functions sont dans `supabase/functions/` :
-
-```
-functions/
-└── whatsapp-webhook/
-    ├── index.ts      # Handler principal
-    └── hr-docs.ts    # Documentation HR (copie simplifiée)
-```
-
-Déploiement :
-```bash
-supabase functions deploy whatsapp-webhook
-```
+- **Emails Transactionnels** : Resend (pour les invitations et notifications).
+- **Stockage Images** : Supabase Storage (pour les avatars et photos d'événements).
