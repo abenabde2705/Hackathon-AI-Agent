@@ -5,8 +5,7 @@ import { updateSession } from '@/lib/supabase/middleware'
 export async function middleware(request: NextRequest) {
   // First, update the session
   const response = await updateSession(request)
-  
-  // Create a supabase client to check the user's role
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
@@ -24,8 +23,7 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const url = request.nextUrl.clone()
-  const isAuthPage = url.pathname === '/login' || url.pathname === '/signup'
-  const isAdminPage = url.pathname.startsWith('/admin')
+  const isAuthPage = url.pathname === '/login'
   const isStaffPage = url.pathname.startsWith('/staff')
   const isAlumniPage = url.pathname.startsWith('/alumni')
 
@@ -39,24 +37,23 @@ export async function middleware(request: NextRequest) {
 
     const role = profile?.role || 'alumni'
 
-    // If user is on an auth page, redirect them to their dashboard
+    // If user is on login page, redirect them to their dashboard
     if (isAuthPage) {
-      if (role === 'admin') return NextResponse.redirect(new URL('/admin', request.url))
-      if (role === 'staff') return NextResponse.redirect(new URL('/staff', request.url))
-      return NextResponse.redirect(new URL('/alumni/jobs', request.url))
+      if (role === 'admin') {
+        return NextResponse.redirect(new URL('/staff', request.url))
+      }
+      return NextResponse.redirect(new URL('/alumni', request.url))
     }
 
-    // Role-based access control
-    if (isAdminPage && role !== 'admin') {
-      return NextResponse.redirect(new URL('/alumni/jobs', request.url))
+    // Protect /staff (admin only)
+    if (isStaffPage && role !== 'admin') {
+      return NextResponse.redirect(new URL('/alumni', request.url))
     }
 
-    if (isStaffPage && role !== 'staff' && role !== 'admin') {
-      return NextResponse.redirect(new URL('/alumni/jobs', request.url))
-    }
+    // Protect /alumni (must be logged in) -> already logged, so OK
   } else {
-    // If not logged in and trying to access protected pages
-    if (isAdminPage || isStaffPage || isAlumniPage) {
+    // Not logged in: block protected pages
+    if (isStaffPage || isAlumniPage) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
   }
@@ -66,13 +63,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

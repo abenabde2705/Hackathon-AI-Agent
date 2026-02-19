@@ -18,9 +18,6 @@ export default function Home() {
           <Button size="lg" asChild className="h-12 px-8 text-base">
             <Link href="/login">Se connecter</Link>
           </Button>
-          <Button variant="outline" size="lg" asChild className="h-12 px-8 text-base">
-            <Link href="/signup">Créer un compte</Link>
-          </Button>
         </div>
       </main>
       
