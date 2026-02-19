@@ -4,7 +4,7 @@ services:
       context: ./web
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3002:3002"
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
