@@ -8,7 +8,18 @@ export const LinkedInScrapeRequestSchema = z.object({
 
 export type LinkedInScrapeRequest = z.infer<typeof LinkedInScrapeRequestSchema>;
 
-export interface ScrapingResponse<T = unknown> {
+export interface LinkedInProfileData {
+  name: string;
+  title: string;
+  company: string;
+  location?: string;
+  education: string;
+  avatar_url?: string;
+  linkedin_url: string;
+  summary?: string;
+}
+
+export interface ScrapingResponse<T = LinkedInProfileData> {
   success: boolean;
   data?: T;
   error?: string;
