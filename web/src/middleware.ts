@@ -39,14 +39,14 @@ export async function middleware(request: NextRequest) {
 
     // If user is on login page, redirect them to their dashboard
     if (isAuthPage) {
-      if (role === 'admin') {
+      if (role === 'admin' || role === 'staff') {
         return NextResponse.redirect(new URL('/staff', request.url))
       }
       return NextResponse.redirect(new URL('/alumni', request.url))
     }
 
-    // Protect /staff (admin only)
-    if (isStaffPage && role !== 'admin') {
+    // Protect /staff (admin or staff only)
+    if (isStaffPage && role !== 'admin' && role !== 'staff') {
       return NextResponse.redirect(new URL('/alumni', request.url))
     }
 
