@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Sparkles, GraduationCap } from 'lucide-react'
+import { ArrowLeft, Sparkles, GraduationCap, FileText, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { URLInputForm } from '@/components/scraping/URLInputForm'
 import { ScrapeResults } from '@/components/scraping/ScrapeResults'
 import { scrapingClient } from '@/lib/services/scraping/client'
 import { LinkedInProfileData } from '@/types/scraping'
+import { Button } from '@/components/ui/button'
 
 interface ScrapedResult {
   data: LinkedInProfileData
@@ -17,6 +18,7 @@ interface ScrapedResult {
 export default function ScrapeAlumniPage() {
   const [results, setResults] = useState<ScrapedResult[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isLoadingCsv, setIsLoadingCsv] = useState(false)
 
   const handleScrape = async (urls: string[]) => {
     setIsProcessing(true)
@@ -38,6 +40,25 @@ export default function ScrapeAlumniPage() {
     }
     
     setIsProcessing(false)
+  }
+
+  const loadFromCsv = async () => {
+    setIsLoadingCsv(true)
+    try {
+      const response = await fetch('/api/alumni/csv-urls')
+      const data = await response.json()
+      
+      if (data.urls && data.urls.length > 0) {
+        handleScrape(data.urls)
+      } else if (data.error) {
+        alert(`Erreur: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Failed to load CSV:', error)
+      alert('Erreur lors du chargement du fichier CSV')
+    } finally {
+      setIsLoadingCsv(false)
+    }
   }
 
   return (
@@ -68,11 +89,27 @@ export default function ScrapeAlumniPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-800">
-          <GraduationCap className="h-5 w-5 text-blue-600" />
-          <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
-            {results.filter(r => !r.error).length} profils récupérés
-          </p>
+        <div className="flex flex-col gap-3">
+          <Button 
+            onClick={loadFromCsv} 
+            disabled={isProcessing || isLoadingCsv}
+            variant="outline"
+            className="bg-white dark:bg-zinc-900 border-blue-200 dark:border-blue-800 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+          >
+            {isLoadingCsv ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileText className="mr-2 h-4 w-4" />
+            )}
+            Charger depuis alumni_linkedin_profiles.csv
+          </Button>
+
+          <div className="flex items-center gap-3 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-800">
+            <GraduationCap className="h-5 w-5 text-blue-600" />
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+              {results.filter(r => !r.error).length} profils récupérés
+            </p>
+          </div>
         </div>
       </div>
 

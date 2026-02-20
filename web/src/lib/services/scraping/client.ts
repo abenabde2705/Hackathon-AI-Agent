@@ -25,7 +25,7 @@ export const scrapingClient = {
       const rawData = Array.isArray(result.data) ? result.data[0] : result.data;
 
       // Helper to extract string from potential object (common in scraper results)
-      const getStringValue = (val: unknown): string => {
+      const getStringValue = (val: any): string => {
         if (!val) return 'Non spécifié';
         if (typeof val === 'string') return val;
         if (typeof val === 'object') {
@@ -34,15 +34,27 @@ export const scrapingClient = {
         return String(val);
       };
 
+      // Extract name with fallbacks
+      const name = rawData?.name || 
+                   rawData?.full_name || 
+                   (rawData?.first_name && rawData?.last_name ? `${rawData.first_name} ${rawData.last_name}` : 'Inconnu');
+
+      // Extract education with fallbacks
+      let education = 'Non spécifié';
+      if (rawData?.educations_details) {
+        education = getStringValue(rawData.educations_details);
+      } else if (Array.isArray(rawData?.education) && rawData.education.length > 0) {
+        const firstEdu = rawData.education[0];
+        education = getStringValue(firstEdu?.school || firstEdu?.title || firstEdu);
+      }
+
       const profile: LinkedInProfileData = {
-        name: getStringValue(rawData?.name || rawData?.full_name || 'Inconnu'),
-        title: getStringValue(rawData?.title || rawData?.occupation),
-        company: getStringValue(rawData?.company || rawData?.current_company),
-        location: typeof rawData?.location === 'object' ? rawData.location?.name || rawData.location?.text : rawData?.location,
-        education: Array.isArray(rawData?.education) 
-          ? getStringValue(rawData.education[0]?.school || rawData.education[0])
-          : getStringValue(rawData?.education),
-        avatar_url: rawData?.avatar_url || rawData?.profile_pic_url,
+        name: getStringValue(name),
+        title: getStringValue(rawData?.title || rawData?.headline || rawData?.occupation),
+        company: getStringValue(rawData?.current_company_name || rawData?.company || rawData?.current_company),
+        location: getStringValue(rawData?.location || rawData?.city || rawData?.country_code),
+        education: education,
+        avatar_url: rawData?.avatar || rawData?.avatar_url || rawData?.profile_pic_url,
         linkedin_url: url,
         summary: rawData?.summary || rawData?.about,
       };
