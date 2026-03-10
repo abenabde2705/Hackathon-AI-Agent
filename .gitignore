@@ -14,3 +14,5 @@ node_modules/
 # OS files
 .DS_Store
 Thumbs.db
+GEMINI.md
+google-chrome-stable_current_amd64.deb
