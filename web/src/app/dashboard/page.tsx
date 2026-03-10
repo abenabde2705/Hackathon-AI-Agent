@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
-import { Plus, Upload, Loader2, GraduationCap, Users } from 'lucide-react'
+import { Plus, Upload, Loader2, GraduationCap, Users, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 
 interface Profile {
@@ -89,7 +89,13 @@ export default function StaffUsersPage() {
         </div>
         <div className="flex gap-4">
           <Button asChild variant="outline" className="shadow-sm">
-            <Link href="/staff/alumni/import">
+            <Link href="/dashboard/scrape">
+              <Sparkles className="mr-2 h-4 w-4 text-blue-600" />
+              Magic Scraper
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="shadow-sm">
+            <Link href="/dashboard/import">
               <Upload className="mr-2 h-4 w-4" />
               Import Bulk CSV
             </Link>
