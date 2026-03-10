@@ -95,7 +95,7 @@ export default function ImportPage() {
 
           <div className="pt-6">
             <Button asChild className="w-full">
-              <Link href="/staff/alumni">Retour à la gestion des utilisateurs</Link>
+              <Link href="/dashboard">Retour à la gestion des utilisateurs</Link>
             </Button>
           </div>
         </Card>
@@ -107,7 +107,7 @@ export default function ImportPage() {
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/staff/alumni">
+          <Link href="/dashboard">
             <ArrowLeft className="h-5 w-5" />
           </Link>
         </Button>
