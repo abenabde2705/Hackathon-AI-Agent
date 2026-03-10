@@ -25,11 +25,12 @@ export const scrapingClient = {
       const rawData = Array.isArray(result.data) ? result.data[0] : result.data;
 
       // Helper to extract string from potential object (common in scraper results)
-      const getStringValue = (val: any): string => {
+      const getStringValue = (val: unknown): string => {
         if (!val) return 'Non spécifié';
         if (typeof val === 'string') return val;
         if (typeof val === 'object') {
-          return val.name || val.title || val.text || JSON.stringify(val);
+          const obj = val as Record<string, unknown>;
+          return String(obj.name || obj.title || obj.text || JSON.stringify(val));
         }
         return String(val);
       };

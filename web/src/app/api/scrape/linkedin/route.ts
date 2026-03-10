@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
-      
+
       if (error.message.includes('Bright Data API failure')) {
         return NextResponse.json<ScrapingResponse>(
           { success: false, error: `External API failure: ${error.message}` },
