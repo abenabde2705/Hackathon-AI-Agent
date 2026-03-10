@@ -42,6 +42,7 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
   const isAuthPage = pathname === '/login' || pathname === '/signup'
+  const isConfirmPage = pathname.startsWith('/auth')
   const isAdminPath = pathname.startsWith('/admin')
   const isDashboardPath = pathname.startsWith('/dashboard')
   const isHomePath = pathname === '/'
@@ -64,7 +65,8 @@ export async function middleware(request: NextRequest) {
     }
 
     // Redirect logged-in users from Auth pages or Home page
-    if (isAuthPage || isHomePath) {
+    // BUT NOT if they are on /auth/* (like /auth/set-password)
+    if ((isAuthPage || isHomePath) && !isConfirmPage) {
       const url = request.nextUrl.clone()
       url.pathname = getDashboardRedirect()
       const redirectResponse = NextResponse.redirect(url)
