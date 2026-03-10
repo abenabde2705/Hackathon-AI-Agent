@@ -12,7 +12,7 @@ export default function ConfirmPage() {
     // Supabase handles the hash fragment automatically to set the session
     // We just wait a bit and redirect to profile or home
     const timer = setTimeout(() => {
-      router.push('/alumni/jobs')
+      router.push('/dashboard/jobs')
     }, 2000)
     
     return () => clearTimeout(timer)

@@ -28,74 +28,79 @@ export async function inviteUser(userData: {
   degree?: string
   linkedin_url?: string
 }) {
-  const supabase = await createClient()
-  const adminClient = createAdminClient()
+  try {
+    const supabase = await createClient()
+    const adminClient = createAdminClient()
 
-  // 1. Check current user role permissions
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Unauthorized')
+    // 1. Check current user role permissions
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
 
-  const { data: currentUserProfile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!currentUserProfile) throw new Error('Unauthorized')
-
-  // STRICT RULE 1: Only admin can invite staff
-  if (userData.role === 'staff' && currentUserProfile.role !== 'admin') {
-    return { error: 'Permission denied: Only administrators can invite Staff.' }
-  }
-
-  // STRICT RULE 2: Staff can only invite Alumni
-  if (currentUserProfile.role === 'staff' && userData.role !== 'alumni') {
-    return { error: 'Permission denied: Staff can only invite Alumni.' }
-  }
-
-  // Ensure user is at least staff/admin
-  if (currentUserProfile.role !== 'admin' && currentUserProfile.role !== 'staff') {
-    throw new Error('Unauthorized')
-  }
-
-  // 2. Invite user via Supabase Auth Admin API
-  const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
-    userData.email,
-    {
-      data: {
-        first_name: userData.first_name,
-        last_name: userData.last_name,
-      },
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm`,
-    }
-  )
-
-  if (inviteError) {
-    return { error: inviteError.message }
-  }
-
-  // 3. Update the profile with metadata
-  if (inviteData.user) {
-    const { error: updateError } = await adminClient
+    const { data: currentUserProfile } = await supabase
       .from('profiles')
-      .update({
-        first_name: userData.first_name,
-        last_name: userData.last_name,
-        role: userData.role,
-        graduation_year: userData.graduation_year,
-        degree: userData.degree,
-        linkedin_url: userData.linkedin_url,
-      })
-      .eq('id', inviteData.user.id)
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
-    if (updateError) {
-      console.error('Error updating profile metadata:', updateError)
+    if (!currentUserProfile) throw new Error('Unauthorized')
+
+    // STRICT RULE 1: Only admin can invite staff
+    if (userData.role === 'staff' && currentUserProfile.role !== 'admin') {
+      return { error: 'Permission denied: Only administrators can invite Staff.' }
     }
-  }
 
-  revalidatePath('/admin/staff')
-  revalidatePath('/staff/alumni')
-  return { success: true }
+    // STRICT RULE 2: Staff can only invite Alumni
+    if (currentUserProfile.role === 'staff' && userData.role !== 'alumni') {
+      return { error: 'Permission denied: Staff can only invite Alumni.' }
+    }
+
+    // Ensure user is at least staff/admin
+    if (currentUserProfile.role !== 'admin' && currentUserProfile.role !== 'staff') {
+      throw new Error('Unauthorized')
+    }
+
+    // 2. Invite user via Supabase Auth Admin API
+    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+      userData.email,
+      {
+        data: {
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+        },
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm`,
+      }
+    )
+
+    if (inviteError) {
+      return { error: inviteError.message }
+    }
+
+    // 3. Update the profile with metadata
+    if (inviteData.user) {
+      const { error: updateError } = await adminClient
+        .from('profiles')
+        .update({
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+          role: userData.role,
+          graduation_year: userData.graduation_year,
+          degree: userData.degree,
+          linkedin_url: userData.linkedin_url,
+        })
+        .eq('id', inviteData.user.id)
+
+      if (updateError) {
+        console.error('Error updating profile metadata:', updateError)
+      }
+    }
+
+    revalidatePath('/admin/staff')
+    revalidatePath('/dashboard')
+    return { success: true }
+  } catch (err: any) {
+    console.error('Invitation error:', err)
+    return { error: err.message || 'An unexpected error occurred during invitation.' }
+  }
 }
 
 interface BulkInviteUser {
@@ -127,6 +132,6 @@ export async function bulkInviteAlumni(users: BulkInviteUser[]) {
     }
   }
 
-  revalidatePath('/staff/alumni')
+  revalidatePath('/dashboard')
   return results
 }

@@ -67,7 +67,7 @@ export default function ScrapeAlumniPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-4">
           <Link 
-            href="/staff/alumni" 
+            href="/dashboard" 
             className="flex items-center text-sm font-medium text-muted-foreground hover:text-blue-600 transition-colors w-fit"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
