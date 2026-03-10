@@ -6,8 +6,8 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy package.json and pnpm-lock.yaml
-COPY package.json pnpm-lock.yaml ./
+# Copy package.json and pnpm-lock.yaml from the web/ directory
+COPY web/package.json web/pnpm-lock.yaml ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -21,7 +21,14 @@ RUN npm install -g pnpm
 
 # Copy node_modules and other files
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# Copy all files from the web/ directory to the current WORKDIR
+COPY web .
+
+# Declare ARGs to inline environment variables during build
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 # Build the application
 # Note: Next.js telemetry is disabled during build
