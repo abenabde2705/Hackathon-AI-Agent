@@ -1,0 +1,2 @@
+ALTER TABLE scraped_profiles ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE scraped_profiles ADD COLUMN IF NOT EXISTS diploma TEXT;

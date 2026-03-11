@@ -1,14 +1,21 @@
 import { LinkedInProfileData, ScrapingResponse } from '@/types/scraping';
+import { CsvAlumniRow } from '@/app/api/alumni/csv-urls/route';
 
 export const scrapingClient = {
-  async scrapeLinkedInProfile(url: string): Promise<ScrapingResponse> {
+  async scrapeLinkedInProfile(url: string, csvRow?: CsvAlumniRow): Promise<ScrapingResponse> {
     try {
       const response = await fetch('/api/scrape/linkedin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({
+          url,
+          email: csvRow?.email || undefined,
+          name: csvRow ? `${csvRow.firstName} ${csvRow.lastName}`.trim() || undefined : undefined,
+          graduationYear: csvRow?.graduationYear || undefined,
+          diploma: csvRow?.diploma || undefined,
+        }),
       });
 
       if (!response.ok) {
@@ -20,24 +27,27 @@ export const scrapingClient = {
       }
 
       const result = await response.json();
-      
+
       // Map Bright Data result to our LinkedInProfileData if necessary
       const rawData = Array.isArray(result.data) ? result.data[0] : result.data;
 
       // Helper to extract string from potential object (common in scraper results)
-      const getStringValue = (val: any): string => {
+      const getStringValue = (val: unknown): string => {
         if (!val) return 'Non spécifié';
         if (typeof val === 'string') return val;
         if (typeof val === 'object') {
-          return val.name || val.title || val.text || JSON.stringify(val);
+          const obj = val as Record<string, unknown>;
+          return String(obj.name || obj.title || obj.text || JSON.stringify(val));
         }
         return String(val);
       };
 
-      // Extract name with fallbacks
-      const name = rawData?.name || 
-                   rawData?.full_name || 
-                   (rawData?.first_name && rawData?.last_name ? `${rawData.first_name} ${rawData.last_name}` : 'Inconnu');
+      // Extract name: prefer CSV data, fallback to scraped
+      const name = (csvRow?.firstName && csvRow?.lastName)
+        ? `${csvRow.firstName} ${csvRow.lastName}`.trim()
+        : rawData?.name ||
+          rawData?.full_name ||
+          (rawData?.first_name && rawData?.last_name ? `${rawData.first_name} ${rawData.last_name}` : 'Inconnu');
 
       // Extract education with fallbacks
       let education = 'Non spécifié';
@@ -53,7 +63,7 @@ export const scrapingClient = {
         title: getStringValue(rawData?.title || rawData?.headline || rawData?.occupation),
         company: getStringValue(rawData?.current_company_name || rawData?.company || rawData?.current_company),
         location: getStringValue(rawData?.location || rawData?.city || rawData?.country_code),
-        education: education,
+        education: csvRow?.diploma || education,
         avatar_url: rawData?.avatar || rawData?.avatar_url || rawData?.profile_pic_url,
         linkedin_url: url,
         summary: rawData?.summary || rawData?.about,
