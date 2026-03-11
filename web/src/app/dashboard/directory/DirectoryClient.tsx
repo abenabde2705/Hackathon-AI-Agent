@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { AlumniEntry, ScrapedEntry } from '@/app/api/alumni/directory/route'
 import { CsvAlumniRow } from '@/app/api/alumni/csv-urls/route'
 import { scrapingClient } from '@/lib/services/scraping/client'
+import { inviteAndEnrichAlumni } from '@/lib/services/user-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -149,8 +150,8 @@ function DirectoryTable({ rows }: { rows: DirectoryRow[] }) {
 }
 
 export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
-  const [profiles] = useState<AlumniEntry[]>(initialProfiles)
-  const [scraped, setScraped] = useState<ScrapedEntry[]>(initialScraped)
+  const [profiles, setProfiles] = useState<AlumniEntry[]>(initialProfiles)
+  const [scraped] = useState<ScrapedEntry[]>(initialScraped)
   const [csvRows, setCsvRows] = useState<CsvAlumniRow[]>([])
   const [isLoadingCsv, setIsLoadingCsv] = useState(false)
   const [isScrapingCsv, setIsScrapingCsv] = useState(false)
@@ -186,48 +187,44 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
     setIsScrapingCsv(true)
     setScrapeProgress(0)
 
-    const alumniEmails = new Set(profiles.map((p) => p.email).filter(Boolean))
-    const alumniLinkedins = new Set(profiles.map((p) => p.linkedin_url).filter(Boolean))
-
     for (let i = 0; i < csvRows.length; i++) {
       const row = csvRows[i]
 
-      // Skip if this person already exists as an alumni
-      const isDuplicate =
-        (row.email && alumniEmails.has(row.email)) ||
-        (row.linkedinUrl && alumniLinkedins.has(row.linkedinUrl))
+      const response = await scrapingClient.scrapeLinkedInProfile(row.linkedinUrl, row, { skipSave: true })
+      const scrapedData = response.success && response.data
+        ? { company: response.data.company, position: response.data.title, avatar_url: response.data.avatar_url }
+        : {}
 
-      if (!isDuplicate) {
-        const response = await scrapingClient.scrapeLinkedInProfile(row.linkedinUrl, row)
+      const result = await inviteAndEnrichAlumni(
+        {
+          email: row.email,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          graduationYear: row.graduationYear,
+          diploma: row.diploma,
+          linkedinUrl: row.linkedinUrl,
+        },
+        scrapedData
+      )
 
-        if (response.success && response.data) {
-          const newEntry: ScrapedEntry = {
-            id: crypto.randomUUID(),
-            name: response.data.name,
-            email: row.email || null,
-            graduation_year: row.graduationYear,
-            title: response.data.title,
-            company: response.data.company,
-            linkedin_url: response.data.linkedin_url,
-            avatar_url: response.data.avatar_url ?? null,
-            education: row.diploma || response.data.education,
-            type: 'scraped',
+      if ('success' in result && result.success) {
+        setProfiles((prev) => {
+          const idx = prev.findIndex((p) => p.email === result.profile.email)
+          if (idx >= 0) {
+            const updated = [...prev]
+            updated[idx] = result.profile
+            return updated
           }
-          setScraped((prev) => {
-            // Also deduplicate within already-scraped entries
-            const alreadyScraped =
-              prev.some((s) => s.email && s.email === newEntry.email) ||
-              prev.some((s) => s.linkedin_url && s.linkedin_url === newEntry.linkedin_url)
-            return alreadyScraped ? prev : [...prev, newEntry]
-          })
-        }
+          return [...prev, result.profile]
+        })
       }
+
       setScrapeProgress(i + 1)
     }
 
     setIsScrapingCsv(false)
     setCsvRows([])
-  }, [csvRows, profiles])
+  }, [csvRows])
 
   return (
     <div className="space-y-6">

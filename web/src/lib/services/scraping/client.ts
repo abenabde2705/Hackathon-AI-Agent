@@ -2,7 +2,7 @@ import { LinkedInProfileData, ScrapingResponse } from '@/types/scraping';
 import { CsvAlumniRow } from '@/app/api/alumni/csv-urls/route';
 
 export const scrapingClient = {
-  async scrapeLinkedInProfile(url: string, csvRow?: CsvAlumniRow): Promise<ScrapingResponse> {
+  async scrapeLinkedInProfile(url: string, csvRow?: CsvAlumniRow, options?: { skipSave?: boolean }): Promise<ScrapingResponse> {
     try {
       const response = await fetch('/api/scrape/linkedin', {
         method: 'POST',
@@ -15,6 +15,7 @@ export const scrapingClient = {
           name: csvRow ? `${csvRow.firstName} ${csvRow.lastName}`.trim() || undefined : undefined,
           graduationYear: csvRow?.graduationYear || undefined,
           diploma: csvRow?.diploma || undefined,
+          skipSave: options?.skipSave,
         }),
       });
 
