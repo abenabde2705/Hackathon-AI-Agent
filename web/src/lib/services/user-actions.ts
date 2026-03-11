@@ -158,7 +158,7 @@ export async function bulkInviteAlumni(users: BulkInviteUser[]) {
 
 export async function updateAlumniAfterScrape(
   id: string,
-  data: { current_position?: string | null; current_company?: string | null }
+  data: { current_position?: string | null; current_company?: string | null; avatar_url?: string | null }
 ) {
   const adminClient = createAdminClient()
   await adminClient
@@ -166,9 +166,43 @@ export async function updateAlumniAfterScrape(
     .update({
       current_position: data.current_position ?? null,
       current_company: data.current_company ?? null,
+      ...(data.avatar_url !== undefined && { avatar_url: data.avatar_url }),
     })
     .eq('id', id)
   revalidatePath('/dashboard/directory')
+}
+
+export async function getAlumniWithLinkedin(): Promise<AlumniEntry[]> {
+  const adminClient = createAdminClient()
+
+  const [usersResult, profilesResult] = await Promise.all([
+    adminClient.auth.admin.listUsers({ perPage: 1000 }),
+    adminClient
+      .from('profiles')
+      .select('*')
+      .eq('role', 'alumni')
+      .not('linkedin_url', 'is', null),
+  ])
+
+  if (profilesResult.error) return []
+
+  const emailMap = new Map(
+    (usersResult.data?.users ?? []).map((u) => [u.id, u.email ?? null])
+  )
+
+  return (profilesResult.data ?? []).map((p) => ({
+    id: p.id,
+    first_name: p.first_name,
+    last_name: p.last_name,
+    email: emailMap.get(p.id) ?? null,
+    graduation_year: p.graduation_year,
+    degree: p.degree,
+    current_position: p.current_position,
+    current_company: p.current_company,
+    linkedin_url: p.linkedin_url,
+    avatar_url: p.avatar_url,
+    type: 'alumni' as const,
+  }))
 }
 
 export async function inviteAndEnrichAlumni(

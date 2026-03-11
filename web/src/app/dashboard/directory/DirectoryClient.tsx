@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { AlumniEntry, ScrapedEntry } from '@/app/api/alumni/directory/route'
 import { CsvAlumniRow } from '@/app/api/alumni/csv-urls/route'
 import { scrapingClient } from '@/lib/services/scraping/client'
-import { inviteAndEnrichAlumni } from '@/lib/services/user-actions'
+import { inviteAndEnrichAlumni, updateAlumniAfterScrape, getAlumniWithLinkedin } from '@/lib/services/user-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -153,6 +153,7 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
   const [profiles, setProfiles] = useState<AlumniEntry[]>(initialProfiles)
   const [scraped] = useState<ScrapedEntry[]>(initialScraped)
   const [csvRows, setCsvRows] = useState<CsvAlumniRow[]>([])
+  const [existingToScrape, setExistingToScrape] = useState<AlumniEntry[]>([])
   const [isLoadingCsv, setIsLoadingCsv] = useState(false)
   const [isScrapingCsv, setIsScrapingCsv] = useState(false)
   const [scrapeProgress, setScrapeProgress] = useState(0)
@@ -172,24 +173,32 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
   const loadCsvUrls = async () => {
     setIsLoadingCsv(true)
     try {
-      const res = await fetch('/api/alumni/csv-urls')
-      const data = await res.json()
-      if (data.rows) setCsvRows(data.rows)
+      const [csvRes, existing] = await Promise.all([
+        fetch('/api/alumni/csv-urls').then((r) => r.json()),
+        getAlumniWithLinkedin(),
+      ])
+      if (csvRes.rows) setCsvRows(csvRes.rows)
+      // Only enrich existing alumni who are missing company/position
+      setExistingToScrape(
+        existing.filter((a) => !a.current_company && !a.current_position && a.linkedin_url)
+      )
     } catch {
-      alert('Erreur lors du chargement du CSV')
+      alert('Erreur lors du chargement')
     } finally {
       setIsLoadingCsv(false)
     }
   }
 
   const handleScrape = useCallback(async () => {
-    if (csvRows.length === 0) return
+    const total = csvRows.length + existingToScrape.length
+    if (total === 0) return
     setIsScrapingCsv(true)
     setScrapeProgress(0)
 
-    for (let i = 0; i < csvRows.length; i++) {
-      const row = csvRows[i]
+    let done = 0
 
+    // 1. Process CSV rows (invite + enrich)
+    for (const row of csvRows) {
       const response = await scrapingClient.scrapeLinkedInProfile(row.linkedinUrl, row, { skipSave: true })
       const scrapedData = response.success && response.data
         ? { company: response.data.company, position: response.data.title, avatar_url: response.data.avatar_url }
@@ -219,12 +228,42 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
         })
       }
 
-      setScrapeProgress(i + 1)
+      done++
+      setScrapeProgress(done)
+    }
+
+    // 2. Enrich existing alumni who have linkedin_url but no company/position
+    for (const alumni of existingToScrape) {
+      const response = await scrapingClient.scrapeLinkedInProfile(
+        alumni.linkedin_url!,
+        undefined,
+        { skipSave: true }
+      )
+
+      if (response.success && response.data) {
+        const { company, title: position, avatar_url } = response.data
+        await updateAlumniAfterScrape(alumni.id, {
+          current_company: company || null,
+          current_position: position || null,
+          avatar_url: avatar_url || null,
+        })
+        setProfiles((prev) =>
+          prev.map((p) =>
+            p.id === alumni.id
+              ? { ...p, current_company: company || null, current_position: position || null, avatar_url: avatar_url || null }
+              : p
+          )
+        )
+      }
+
+      done++
+      setScrapeProgress(done)
     }
 
     setIsScrapingCsv(false)
     setCsvRows([])
-  }, [csvRows])
+    setExistingToScrape([])
+  }, [csvRows, existingToScrape])
 
   return (
     <div className="space-y-6">
@@ -293,30 +332,42 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
                 Charger le CSV
               </Button>
 
-              <Button
-                onClick={handleScrape}
-                disabled={csvRows.length === 0 || isScrapingCsv}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {isScrapingCsv ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {scrapeProgress}/{csvRows.length} scrapés...
-                  </>
-                ) : (
-                  <>
-                    <GraduationCap className="mr-2 h-4 w-4" />
-                    {csvRows.length > 0
-                      ? `Scraper ${csvRows.length} profil${csvRows.length > 1 ? 's' : ''}`
-                      : 'Scraper'}
-                  </>
-                )}
-              </Button>
+              {(() => {
+                const total = csvRows.length + existingToScrape.length
+                return (
+                  <Button
+                    onClick={handleScrape}
+                    disabled={total === 0 || isScrapingCsv}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isScrapingCsv ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {scrapeProgress}/{total} scrapés...
+                      </>
+                    ) : (
+                      <>
+                        <GraduationCap className="mr-2 h-4 w-4" />
+                        {total > 0 ? `Scraper ${total} profil${total > 1 ? 's' : ''}` : 'Scraper'}
+                      </>
+                    )}
+                  </Button>
+                )
+              })()}
             </div>
 
-            {csvRows.length > 0 && (
-              <div className="text-sm text-blue-600 font-medium">
-                {csvRows.length} profil{csvRows.length > 1 ? 's' : ''} chargé{csvRows.length > 1 ? 's' : ''} et prêt{csvRows.length > 1 ? 's' : ''} à scraper
+            {(csvRows.length > 0 || existingToScrape.length > 0) && (
+              <div className="text-sm text-blue-600 font-medium space-y-1">
+                {csvRows.length > 0 && (
+                  <div>
+                    {csvRows.length} nouveau{csvRows.length > 1 ? 'x' : ''} alumni depuis le CSV
+                  </div>
+                )}
+                {existingToScrape.length > 0 && (
+                  <div>
+                    {existingToScrape.length} alumni existant{existingToScrape.length > 1 ? 's' : ''} à enrichir (pas de poste/entreprise)
+                  </div>
+                )}
               </div>
             )}
           </div>
