@@ -79,13 +79,6 @@ export async function inviteUser(userData: {
         const existingUser = listData?.users.find((u) => u.email === userData.email)
         if (!existingUser) return { error: inviteError.message }
 
-        // Re-generate invite link (sends a new email for unconfirmed users)
-        await adminClient.auth.admin.generateLink({
-          type: 'invite',
-          email: userData.email,
-          options: { redirectTo },
-        })
-
         inviteData = { user: existingUser } as typeof inviteData
         inviteError = null
       } else {
@@ -93,7 +86,20 @@ export async function inviteUser(userData: {
       }
     }
 
-    // 3. Update the profile with metadata
+    // 3. Generate the invite link (always, so staff can share it manually if email fails)
+    let inviteLink: string | null = null
+    try {
+      const { data: linkData } = await adminClient.auth.admin.generateLink({
+        type: 'invite',
+        email: userData.email,
+        options: { redirectTo },
+      })
+      inviteLink = linkData?.properties?.action_link ?? null
+    } catch {
+      // Non-blocking: link generation failure doesn't prevent the invite
+    }
+
+    // 4. Update the profile with metadata
     if (inviteData?.user) {
       const { error: updateError } = await adminClient
         .from('profiles')
@@ -115,7 +121,7 @@ export async function inviteUser(userData: {
     revalidatePath('/admin/staff')
     revalidatePath('/dashboard')
     revalidatePath('/dashboard/directory')
-    return { success: true }
+    return { success: true, inviteLink }
   } catch (err: any) {
     console.error('Invitation error:', err)
     return { error: err.message || 'An unexpected error occurred during invitation.' }
