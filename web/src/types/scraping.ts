@@ -30,7 +30,7 @@ export interface ScrapingResponse<T = LinkedInProfileData> {
   error?: string;
 }
 
-// Minimal interface for Bright Data response based on requirement
-export interface BrightDataScrapeResult {
+// Minimal interface for Apify response
+export interface ApifyScrapeResult {
   [key: string]: unknown;
 }

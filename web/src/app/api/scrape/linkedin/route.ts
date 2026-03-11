@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LinkedInScrapeRequestSchema, ScrapingResponse } from '@/types/scraping';
-import { BrightDataService } from '@/lib/services/scraping/bright-data';
+import { ApifyService } from '@/lib/services/scraping/apify';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ZodError } from 'zod';
 
@@ -11,10 +11,10 @@ export async function POST(request: NextRequest) {
     const validatedData = LinkedInScrapeRequestSchema.parse(body);
 
     // 2. Trigger Scrape
-    const result = await BrightDataService.scrapeLinkedInProfile(validatedData.url);
+    const result = await ApifyService.scrapeLinkedInProfile(validatedData.url);
     const rawData = (Array.isArray(result) ? result[0] : result) as Record<string, unknown>;
 
-    // 3. Extract relevant fields from BrightData response
+    // 3. Extract relevant fields from Apify response
     const scrapedName =
       (rawData?.name as string) ||
       (rawData?.first_name && rawData?.last_name
@@ -78,14 +78,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (error instanceof Error) {
-      if (error.message.includes('BRIGHT_DATA_API_KEY is not configured')) {
+      if (error.message.includes('APIFY_EMAIL and APIFY_PASSWORD are not configured')) {
         return NextResponse.json<ScrapingResponse>(
-          { success: false, error: 'Scraping service not configured. Please check BRIGHT_DATA_API_KEY in your .env.local file.' },
+          { success: false, error: 'Scraping service not configured. Please check APIFY_EMAIL and APIFY_PASSWORD in your .env.local file.' },
           { status: 500 }
         );
       }
 
-      if (error.message.includes('Bright Data API failure')) {
+      if (error.message.includes('Apify run')) {
         return NextResponse.json<ScrapingResponse>(
           { success: false, error: `External API failure: ${error.message}` },
           { status: 502 }

@@ -28,7 +28,7 @@ export const scrapingClient = {
 
       const result = await response.json();
 
-      // Map Bright Data result to our LinkedInProfileData if necessary
+      // Map Apify result to our LinkedInProfileData if necessary
       const rawData = Array.isArray(result.data) ? result.data[0] : result.data;
 
       // Helper to extract string from potential object (common in scraper results)
