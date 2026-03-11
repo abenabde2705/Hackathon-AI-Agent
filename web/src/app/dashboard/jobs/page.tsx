@@ -1,12 +1,25 @@
 import Link from 'next/link'
-import { getJobs } from '@/lib/services/jobs'
+import { getJobs, JobFilters as JobFiltersType } from '@/lib/services/jobs'
 import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Plus, Briefcase, MapPin, Building2 } from 'lucide-react'
+import { JobFilters } from './job-filters'
+import { Suspense } from 'react'
 
-export default async function JobsPage() {
-  const jobs = await getJobs()
+export default async function JobsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const params = await searchParams
+  const filters: JobFiltersType = {
+    search: params.search as string,
+    type: params.type as string,
+    sort: params.sort as 'newest' | 'oldest',
+  }
+
+  const jobs = await getJobs(filters)
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -20,13 +33,13 @@ export default async function JobsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Offres d'emploi</h2>
           <p className="text-zinc-500 dark:text-zinc-400">Découvrez les dernières opportunités pour le réseau Alumni.</p>
         </div>
         {canCreate && (
-          <Button asChild className="gap-2">
+          <Button asChild className="gap-2 shrink-0">
             <Link href="/dashboard/jobs/new">
               <Plus className="h-4 w-4" />
               Publier une offre
@@ -35,10 +48,14 @@ export default async function JobsPage() {
         )}
       </div>
 
+      <Suspense fallback={<div className="h-24 animate-pulse bg-zinc-100 dark:bg-zinc-800 rounded-xl" />}>
+        <JobFilters />
+      </Suspense>
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {jobs.length > 0 ? (
           jobs.map((job) => (
-            <Card key={job.id} className="flex flex-col border dark:border-zinc-800 dark:bg-zinc-900">
+            <Card key={job.id} className="flex flex-col border dark:border-zinc-800 dark:bg-zinc-900 transition-shadow hover:shadow-md">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
@@ -76,8 +93,8 @@ export default async function JobsPage() {
         ) : (
           <div className="col-span-full py-12 text-center border-2 border-dashed rounded-xl border-zinc-200 dark:border-zinc-800">
             <Briefcase className="h-12 w-12 mx-auto text-zinc-300 mb-4" />
-            <h3 className="text-lg font-medium">Aucune offre disponible</h3>
-            <p className="text-zinc-500">Revenez plus tard pour voir les nouvelles opportunités.</p>
+            <h3 className="text-lg font-medium">Aucune offre trouvée</h3>
+            <p className="text-zinc-500">Essayez de modifier vos filtres ou votre recherche.</p>
           </div>
         )}
       </div>
