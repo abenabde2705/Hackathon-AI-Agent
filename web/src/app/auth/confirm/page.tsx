@@ -14,39 +14,33 @@ function ConfirmContent() {
 
   useEffect(() => {
     const handleConfirm = async () => {
-      // Supabase invitation links often put tokens in the URL hash:
-      // #access_token=...&refresh_token=...&type=invite
-      const hash = window.location.hash.substring(1)
-      const params = new URLSearchParams(hash)
-      
-      const accessToken = params.get('access_token')
-      const refreshToken = params.get('refresh_token')
-
-      // Fallback to query params if hash is empty (for some flows)
+      const supabase = createClient()
       const queryParams = new URLSearchParams(window.location.search)
+      const tokenHash = queryParams.get('token_hash')
+      const type = queryParams.get('type')
       const code = queryParams.get('code')
 
-      if (accessToken && refreshToken) {
+      // Modern Supabase PKCE flow: ?token_hash=xxx&type=invite
+      if (tokenHash && type) {
         try {
-          const supabase = createClient()
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: type as 'invite' | 'email' | 'recovery' | 'signup',
           })
-
           if (error) {
-            setError("La session d'invitation n'a pas pu être établie : " + error.message)
+            setError("Le lien de confirmation est invalide ou a expiré : " + error.message)
             return
           }
-          
           router.push('/auth/set-password')
         } catch (err: any) {
-          setError("Erreur lors de l'initialisation de la session : " + err.message)
+          setError("Erreur lors de la validation du lien : " + err.message)
         }
-      } else if (code) {
-        // Handle code flow if provided
+        return
+      }
+
+      // Code flow
+      if (code) {
         try {
-          const supabase = createClient()
           const { error } = await supabase.auth.exchangeCodeForSession(code)
           if (error) {
             setError("Le lien de confirmation est invalide ou a expiré.")
@@ -56,9 +50,33 @@ function ConfirmContent() {
         } catch (err: any) {
           setError("Erreur lors de l'échange du code : " + err.message)
         }
-      } else {
-        setError("Lien de confirmation manquant ou invalide (jetons non trouvés).")
+        return
       }
+
+      // Legacy hash flow: #access_token=...&refresh_token=...
+      const hash = window.location.hash.substring(1)
+      const hashParams = new URLSearchParams(hash)
+      const accessToken = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token')
+
+      if (accessToken && refreshToken) {
+        try {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          if (error) {
+            setError("La session d'invitation n'a pas pu être établie : " + error.message)
+            return
+          }
+          router.push('/auth/set-password')
+        } catch (err: any) {
+          setError("Erreur lors de l'initialisation de la session : " + err.message)
+        }
+        return
+      }
+
+      setError("Lien de confirmation manquant ou invalide (jetons non trouvés).")
     }
 
     handleConfirm()

@@ -59,35 +59,52 @@ export async function inviteUser(userData: {
       throw new Error('Unauthorized')
     }
 
+    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm`
+
     // 2. Invite user via Supabase Auth Admin API
-    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+    let { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       userData.email,
       {
-        data: {
-          first_name: userData.first_name,
-          last_name: userData.last_name,
-        },
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm`,
+        data: { first_name: userData.first_name, last_name: userData.last_name },
+        redirectTo,
       }
     )
 
+    // If user already exists in auth (e.g. deleted from dashboard but not fully purged),
+    // find them and regenerate an invite link so they can still set their password.
     if (inviteError) {
-      return { error: inviteError.message }
+      if (inviteError.message.toLowerCase().includes('already been registered')) {
+        const { data: listData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+        const existingUser = listData?.users.find((u) => u.email === userData.email)
+        if (!existingUser) return { error: inviteError.message }
+
+        // Re-generate invite link (sends a new email for unconfirmed users)
+        await adminClient.auth.admin.generateLink({
+          type: 'invite',
+          email: userData.email,
+          options: { redirectTo },
+        })
+
+        inviteData = { user: existingUser } as typeof inviteData
+        inviteError = null
+      } else {
+        return { error: inviteError.message }
+      }
     }
 
     // 3. Update the profile with metadata
-    if (inviteData.user) {
+    if (inviteData?.user) {
       const { error: updateError } = await adminClient
         .from('profiles')
-        .update({
+        .upsert({
+          id: inviteData.user.id,
           first_name: userData.first_name,
           last_name: userData.last_name,
           role: userData.role,
-          graduation_year: userData.graduation_year,
-          degree: userData.degree,
-          linkedin_url: userData.linkedin_url,
+          graduation_year: userData.graduation_year ?? null,
+          degree: userData.degree ?? null,
+          linkedin_url: userData.linkedin_url ?? null,
         })
-        .eq('id', inviteData.user.id)
 
       if (updateError) {
         console.error('Error updating profile metadata:', updateError)
@@ -96,6 +113,7 @@ export async function inviteUser(userData: {
 
     revalidatePath('/admin/staff')
     revalidatePath('/dashboard')
+    revalidatePath('/dashboard/directory')
     return { success: true }
   } catch (err: any) {
     console.error('Invitation error:', err)
@@ -133,5 +151,21 @@ export async function bulkInviteAlumni(users: BulkInviteUser[]) {
   }
 
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard/directory')
   return results
+}
+
+export async function updateAlumniAfterScrape(
+  id: string,
+  data: { current_position?: string | null; current_company?: string | null }
+) {
+  const adminClient = createAdminClient()
+  await adminClient
+    .from('profiles')
+    .update({
+      current_position: data.current_position ?? null,
+      current_company: data.current_company ?? null,
+    })
+    .eq('id', id)
+  revalidatePath('/dashboard/directory')
 }
