@@ -44,6 +44,36 @@ export async function createEvent(formData: FormData) {
   redirect('/dashboard/events')
 }
 
+export async function deleteEvent(id: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  // Check role
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile || (profile.role !== 'admin' && profile.role !== 'staff')) {
+    throw new Error('Permission denied')
+  }
+
+  const { error } = await supabase
+    .from('events')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath('/dashboard/events')
+  redirect('/dashboard/events')
+}
+
 export async function registerForEvent(eventId: string) {
   const supabase = await createClient()
 

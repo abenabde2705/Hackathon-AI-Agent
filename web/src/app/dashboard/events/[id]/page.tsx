@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronLeft, Calendar, MapPin, Users, CheckCircle2 } from 'lucide-react'
+import { DeleteEventButton } from './delete-button'
 
 export default async function EventDetailPage({ params }: { params: { id: string } }) {
   const { id } = await params
@@ -31,12 +32,16 @@ export default async function EventDetailPage({ params }: { params: { id: string
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <Button variant="ghost" asChild className="gap-2">
-        <Link href="/dashboard/events">
-          <ChevronLeft className="h-4 w-4" />
-          Retour aux événements
-        </Link>
-      </Button>
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" asChild className="gap-2">
+          <Link href="/dashboard/events">
+            <ChevronLeft className="h-4 w-4" />
+            Retour aux événements
+          </Link>
+        </Button>
+
+        {isStaffOrAdmin && <DeleteEventButton id={id} />}
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">

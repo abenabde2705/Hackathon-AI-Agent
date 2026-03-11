@@ -4,6 +4,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronLeft, Building2, MapPin, Calendar, ExternalLink } from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
+import { DeleteJobButton } from './delete-button'
 
 export default async function JobDetailPage({ params }: { params: { id: string } }) {
   const { id } = await params
@@ -13,14 +15,29 @@ export default async function JobDetailPage({ params }: { params: { id: string }
     notFound()
   }
 
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id)
+    .single()
+
+  const isStaffOrAdmin = profile?.role === 'admin' || profile?.role === 'staff'
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <Button variant="ghost" asChild className="gap-2">
-        <Link href="/dashboard/jobs">
-          <ChevronLeft className="h-4 w-4" />
-          Retour aux offres
-        </Link>
-      </Button>
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" asChild className="gap-2">
+          <Link href="/dashboard/jobs">
+            <ChevronLeft className="h-4 w-4" />
+            Retour aux offres
+          </Link>
+        </Button>
+
+        {isStaffOrAdmin && <DeleteJobButton id={id} />}
+      </div>
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-6">
