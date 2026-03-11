@@ -12,12 +12,28 @@ export interface Job {
   created_at: string
 }
 
-export async function getJobs() {
+export interface JobFilters {
+  search?: string
+  type?: string
+  sort?: 'newest' | 'oldest'
+}
+
+export async function getJobs(filters?: JobFilters) {
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('jobs')
-    .select('*')
-    .order('created_at', { ascending: false })
+  let query = supabase.from('jobs').select('*')
+
+  if (filters?.search) {
+    query = query.or(`title.ilike.%${filters.search}%,company.ilike.%${filters.search}%`)
+  }
+
+  if (filters?.type && filters.type !== 'all') {
+    query = query.eq('type', filters.type)
+  }
+
+  const sortOrder = filters?.sort === 'oldest' ? true : false
+  query = query.order('created_at', { ascending: sortOrder })
+
+  const { data, error } = await query
 
   if (error) {
     console.error('Error fetching jobs:', error)
