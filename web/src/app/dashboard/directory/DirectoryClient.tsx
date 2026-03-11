@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { Users, FileText, Loader2, ExternalLink, ChevronDown, ChevronUp, GraduationCap } from 'lucide-react'
 import Image from 'next/image'
 import { AlumniEntry, ScrapedEntry } from '@/app/api/alumni/directory/route'
+import { CsvAlumniRow } from '@/app/api/alumni/csv-urls/route'
 import { scrapingClient } from '@/lib/services/scraping/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -147,9 +148,8 @@ function DirectoryTable({ rows }: { rows: DirectoryRow[] }) {
 export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
   const [profiles] = useState<AlumniEntry[]>(initialProfiles)
   const [scraped, setScraped] = useState<ScrapedEntry[]>(initialScraped)
-  const [csvUrls, setCsvUrls] = useState<string[]>([])
+  const [csvRows, setCsvRows] = useState<CsvAlumniRow[]>([])
   const [isLoadingCsv, setIsLoadingCsv] = useState(false)
-  const [selectedYear, setSelectedYear] = useState<string>('')
   const [isScrapingCsv, setIsScrapingCsv] = useState(false)
   const [scrapeProgress, setScrapeProgress] = useState(0)
   const [csvOpen, setCsvOpen] = useState(false)
@@ -170,7 +170,7 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
     try {
       const res = await fetch('/api/alumni/csv-urls')
       const data = await res.json()
-      if (data.urls) setCsvUrls(data.urls)
+      if (data.rows) setCsvRows(data.rows)
     } catch {
       alert('Erreur lors du chargement du CSV')
     } finally {
@@ -179,27 +179,25 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
   }
 
   const handleScrape = useCallback(async () => {
-    if (csvUrls.length === 0) return
+    if (csvRows.length === 0) return
     setIsScrapingCsv(true)
     setScrapeProgress(0)
 
-    const year = selectedYear ? parseInt(selectedYear, 10) : null
-
-    for (let i = 0; i < csvUrls.length; i++) {
-      const url = csvUrls[i]
-      const response = await scrapingClient.scrapeLinkedInProfile(url)
+    for (let i = 0; i < csvRows.length; i++) {
+      const row = csvRows[i]
+      const response = await scrapingClient.scrapeLinkedInProfile(row.linkedinUrl, row)
 
       if (response.success && response.data) {
         const newEntry: ScrapedEntry = {
           id: crypto.randomUUID(),
           name: response.data.name,
-          email: null,
-          graduation_year: year,
+          email: row.email || null,
+          graduation_year: row.graduationYear,
           title: response.data.title,
           company: response.data.company,
           linkedin_url: response.data.linkedin_url,
           avatar_url: response.data.avatar_url ?? null,
-          education: response.data.education,
+          education: row.diploma || response.data.education,
           type: 'scraped',
         }
         setScraped((prev) => [...prev, newEntry])
@@ -208,11 +206,8 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
     }
 
     setIsScrapingCsv(false)
-    setCsvUrls([])
-  }, [csvUrls, selectedYear])
-
-  const currentYear = new Date().getFullYear()
-  const yearOptions = Array.from({ length: 20 }, (_, i) => currentYear - i)
+    setCsvRows([])
+  }, [csvRows])
 
   return (
     <div className="space-y-6">
@@ -281,48 +276,30 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
                 Charger le CSV
               </Button>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  Promo (graduation year)
-                </label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="h-9 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Sans promo</option>
-                  {yearOptions.map((y) => (
-                    <option key={y} value={String(y)}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               <Button
                 onClick={handleScrape}
-                disabled={csvUrls.length === 0 || isScrapingCsv}
+                disabled={csvRows.length === 0 || isScrapingCsv}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {isScrapingCsv ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {scrapeProgress}/{csvUrls.length} scrapés...
+                    {scrapeProgress}/{csvRows.length} scrapés...
                   </>
                 ) : (
                   <>
                     <GraduationCap className="mr-2 h-4 w-4" />
-                    {csvUrls.length > 0
-                      ? `Scraper ${csvUrls.length} URL${csvUrls.length > 1 ? 's' : ''} — Promo ${selectedYear || 'Sans promo'}`
+                    {csvRows.length > 0
+                      ? `Scraper ${csvRows.length} profil${csvRows.length > 1 ? 's' : ''}`
                       : 'Scraper'}
                   </>
                 )}
               </Button>
             </div>
 
-            {csvUrls.length > 0 && (
+            {csvRows.length > 0 && (
               <div className="text-sm text-blue-600 font-medium">
-                {csvUrls.length} URL{csvUrls.length > 1 ? 's' : ''} chargée{csvUrls.length > 1 ? 's' : ''} et prête{csvUrls.length > 1 ? 's' : ''} à scraper
+                {csvRows.length} profil{csvRows.length > 1 ? 's' : ''} chargé{csvRows.length > 1 ? 's' : ''} et prêt{csvRows.length > 1 ? 's' : ''} à scraper
               </div>
             )}
           </div>

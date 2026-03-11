@@ -18,7 +18,7 @@ export interface AlumniEntry {
 export interface ScrapedEntry {
   id: string;
   name: string | null;
-  email: null;
+  email: string | null;
   graduation_year: number | null;
   title: string | null;
   company: string | null;

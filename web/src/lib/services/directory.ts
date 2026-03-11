@@ -33,13 +33,13 @@ export async function getDirectoryEntries(): Promise<{ profiles: AlumniEntry[]; 
   const scraped: ScrapedEntry[] = (scrapedResult.data ?? []).map((s) => ({
     id: s.id,
     name: s.name,
-    email: null,
+    email: s.email ?? null,
     graduation_year: s.graduation_year ?? null,
     title: s.title,
     company: s.company,
     linkedin_url: s.linkedin_url,
     avatar_url: s.avatar_url,
-    education: s.education,
+    education: s.diploma ?? s.education,
     type: 'scraped',
   }));
 

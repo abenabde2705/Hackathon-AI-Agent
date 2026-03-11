@@ -4,6 +4,11 @@ export const LinkedInScrapeRequestSchema = z.object({
   url: z.string().url().refine((url) => url.includes('linkedin.com/in/'), {
     message: 'Must be a valid LinkedIn profile URL',
   }),
+  // Optional CSV metadata to persist alongside scraped data
+  email: z.string().email().optional(),
+  name: z.string().optional(),
+  graduationYear: z.number().int().optional(),
+  diploma: z.string().optional(),
 });
 
 export type LinkedInScrapeRequest = z.infer<typeof LinkedInScrapeRequestSchema>;
