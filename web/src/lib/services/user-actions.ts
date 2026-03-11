@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import type { AlumniEntry } from '@/app/api/alumni/directory/route'
 
 export async function getProfiles() {
   const supabase = await createClient()
@@ -59,35 +60,59 @@ export async function inviteUser(userData: {
       throw new Error('Unauthorized')
     }
 
+    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm`
+
     // 2. Invite user via Supabase Auth Admin API
-    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+    let { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       userData.email,
       {
-        data: {
-          first_name: userData.first_name,
-          last_name: userData.last_name,
-        },
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm`,
+        data: { first_name: userData.first_name, last_name: userData.last_name },
+        redirectTo,
       }
     )
 
+    // Track invite link (only generated for existing users — calling generateLink after
+    // inviteUserByEmail for a NEW user would invalidate the emailed token)
+    let inviteLink: string | null = null
+
+    // If user already exists in auth, generate a fresh invite link manually
     if (inviteError) {
-      return { error: inviteError.message }
+      if (inviteError.message.toLowerCase().includes('already been registered')) {
+        const { data: listData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+        const existingUser = listData?.users.find((u) => u.email === userData.email)
+        if (!existingUser) return { error: inviteError.message }
+
+        try {
+          const { data: linkData } = await adminClient.auth.admin.generateLink({
+            type: 'invite',
+            email: userData.email,
+            options: { redirectTo },
+          })
+          inviteLink = linkData?.properties?.action_link ?? null
+        } catch {
+          // Non-blocking
+        }
+
+        inviteData = { user: existingUser } as typeof inviteData
+        inviteError = null
+      } else {
+        return { error: inviteError.message }
+      }
     }
 
-    // 3. Update the profile with metadata
-    if (inviteData.user) {
+    // 4. Update the profile with metadata
+    if (inviteData?.user) {
       const { error: updateError } = await adminClient
         .from('profiles')
-        .update({
+        .upsert({
+          id: inviteData.user.id,
           first_name: userData.first_name,
           last_name: userData.last_name,
           role: userData.role,
-          graduation_year: userData.graduation_year,
-          degree: userData.degree,
-          linkedin_url: userData.linkedin_url,
+          graduation_year: userData.graduation_year ?? null,
+          degree: userData.degree ?? null,
+          linkedin_url: userData.linkedin_url ?? null,
         })
-        .eq('id', inviteData.user.id)
 
       if (updateError) {
         console.error('Error updating profile metadata:', updateError)
@@ -96,7 +121,8 @@ export async function inviteUser(userData: {
 
     revalidatePath('/admin/staff')
     revalidatePath('/dashboard')
-    return { success: true }
+    revalidatePath('/dashboard/directory')
+    return { success: true, inviteLink }
   } catch (err: any) {
     console.error('Invitation error:', err)
     return { error: err.message || 'An unexpected error occurred during invitation.' }
@@ -133,5 +159,140 @@ export async function bulkInviteAlumni(users: BulkInviteUser[]) {
   }
 
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard/directory')
   return results
+}
+
+export async function updateAlumniAfterScrape(
+  id: string,
+  data: { current_position?: string | null; current_company?: string | null; avatar_url?: string | null }
+) {
+  const adminClient = createAdminClient()
+  await adminClient
+    .from('profiles')
+    .update({
+      current_position: data.current_position ?? null,
+      current_company: data.current_company ?? null,
+      ...(data.avatar_url !== undefined && { avatar_url: data.avatar_url }),
+    })
+    .eq('id', id)
+  revalidatePath('/dashboard/directory')
+}
+
+export async function getAlumniWithLinkedin(): Promise<AlumniEntry[]> {
+  const adminClient = createAdminClient()
+
+  const [usersResult, profilesResult] = await Promise.all([
+    adminClient.auth.admin.listUsers({ perPage: 1000 }),
+    adminClient
+      .from('profiles')
+      .select('*')
+      .eq('role', 'alumni')
+      .not('linkedin_url', 'is', null),
+  ])
+
+  if (profilesResult.error) return []
+
+  const emailMap = new Map(
+    (usersResult.data?.users ?? []).map((u) => [u.id, u.email ?? null])
+  )
+
+  return (profilesResult.data ?? []).map((p) => ({
+    id: p.id,
+    first_name: p.first_name,
+    last_name: p.last_name,
+    email: emailMap.get(p.id) ?? null,
+    graduation_year: p.graduation_year,
+    degree: p.degree,
+    current_position: p.current_position,
+    current_company: p.current_company,
+    linkedin_url: p.linkedin_url,
+    avatar_url: p.avatar_url,
+    type: 'alumni' as const,
+  }))
+}
+
+export async function inviteAndEnrichAlumni(
+  csvRow: {
+    email: string
+    firstName: string
+    lastName: string
+    graduationYear: number | null
+    diploma: string
+    linkedinUrl: string
+  },
+  scraped: { company?: string | null; position?: string | null; avatar_url?: string | null }
+): Promise<{ success: true; profile: AlumniEntry } | { error: string }> {
+  try {
+    const adminClient = createAdminClient()
+    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm`
+
+    // 1. Find existing user by email
+    const { data: listData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+    const existingUser = listData?.users.find((u) => u.email === csvRow.email)
+
+    let userId: string
+
+    if (existingUser) {
+      // Re-generate invite link for existing user
+      await adminClient.auth.admin.generateLink({
+        type: 'invite',
+        email: csvRow.email,
+        options: { redirectTo },
+      })
+      userId = existingUser.id
+    } else {
+      // Invite new user
+      const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+        csvRow.email,
+        {
+          data: { first_name: csvRow.firstName, last_name: csvRow.lastName },
+          redirectTo,
+        }
+      )
+      if (inviteError || !inviteData?.user) {
+        return { error: inviteError?.message ?? 'Failed to invite user' }
+      }
+      userId = inviteData.user.id
+    }
+
+    // 2. Upsert profile with scraped data
+    const profileData = {
+      id: userId,
+      first_name: csvRow.firstName,
+      last_name: csvRow.lastName,
+      role: 'alumni' as const,
+      graduation_year: csvRow.graduationYear ?? null,
+      degree: csvRow.diploma || null,
+      linkedin_url: csvRow.linkedinUrl || null,
+      current_company: scraped.company ?? null,
+      current_position: scraped.position ?? null,
+      avatar_url: scraped.avatar_url ?? null,
+    }
+
+    const { error: upsertError } = await adminClient.from('profiles').upsert(profileData)
+    if (upsertError) {
+      return { error: upsertError.message }
+    }
+
+    revalidatePath('/dashboard/directory')
+
+    const profile: AlumniEntry = {
+      id: userId,
+      first_name: csvRow.firstName,
+      last_name: csvRow.lastName,
+      email: csvRow.email,
+      graduation_year: csvRow.graduationYear ?? null,
+      degree: csvRow.diploma || null,
+      linkedin_url: csvRow.linkedinUrl || null,
+      current_company: scraped.company ?? null,
+      current_position: scraped.position ?? null,
+      avatar_url: scraped.avatar_url ?? null,
+      type: 'alumni',
+    }
+
+    return { success: true, profile }
+  } catch (err: any) {
+    return { error: err.message ?? 'Unexpected error' }
+  }
 }

@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Upload, Loader2, GraduationCap, Users, Mail, ExternalLink } from 'lucide-react'
+import { Plus, Upload, Loader2, GraduationCap, Users, Mail, ExternalLink, Copy, Check } from 'lucide-react'
 import Link from 'next/link'
 import { AnimatedPage, AnimatedSection } from '@/components/ui/animated-section'
 import { cn } from '@/lib/utils'
@@ -34,8 +34,17 @@ export default function StaffUsersPage() {
   const [isInviting, setIsInviting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [inviteLink, setInviteLink] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => { loadProfiles() }, [])
+
+  async function copyInviteLink() {
+    if (!inviteLink) return
+    await navigator.clipboard.writeText(inviteLink)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   async function loadProfiles() {
     setIsLoading(true)
@@ -49,6 +58,7 @@ export default function StaffUsersPage() {
     setIsInviting(true)
     setError(null)
     setSuccess(false)
+    setInviteLink(null)
 
     const formData = new FormData(event.currentTarget)
     const result = await inviteUser({
@@ -65,6 +75,7 @@ export default function StaffUsersPage() {
       setError(result.error)
     } else {
       setSuccess(true)
+      setInviteLink(result.inviteLink ?? null)
       event.currentTarget.reset()
       loadProfiles()
     }
@@ -177,11 +188,28 @@ export default function StaffUsersPage() {
                 </div>
               )}
               {success && (
-                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200/50 dark:border-emerald-800/50 p-4 animate-in fade-in slide-in-from-top-2">
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                    Invitation envoyée avec succès !
-                  </p>
+                <div className="space-y-2">
+                  <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2">
+                    <p className="text-sm text-green-600 dark:text-green-400 font-medium">Alumni créé ! Email d&apos;invitation envoyé.</p>
+                  </div>
+                  {inviteLink && (
+                    <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-2 space-y-1.5">
+                      <p className="text-xs text-zinc-500 font-medium">Lien d&apos;invitation (si l&apos;email n&apos;arrive pas) :</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-zinc-600 dark:text-zinc-300 truncate flex-1 font-mono bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1">
+                          {inviteLink}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={copyInviteLink}
+                          className="shrink-0 p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                          title="Copier le lien"
+                        >
+                          {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5 text-zinc-400" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

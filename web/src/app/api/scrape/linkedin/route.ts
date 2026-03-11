@@ -41,25 +41,28 @@ export async function POST(request: NextRequest) {
       (rawData?.educations_details as string) || null;
 
     // 4. Save to Supabase (upsert by linkedin_url, non-blocking)
-    try {
-      const admin = createAdminClient();
-      await admin.from('scraped_profiles').upsert(
-        {
-          linkedin_url: validatedData.url,
-          name: validatedData.name || scrapedName,
-          email: validatedData.email || null,
-          graduation_year: validatedData.graduationYear || null,
-          diploma: validatedData.diploma || null,
-          title,
-          company,
-          avatar_url,
-          education,
-          scraped_at: new Date().toISOString(),
-        },
-        { onConflict: 'linkedin_url' }
-      );
-    } catch (dbError) {
-      console.error('[SCRAPE_LINKEDIN] DB save failed (non-blocking):', dbError);
+    // Skip when called from the CSV invite+enrich flow (skipSave: true)
+    if (!validatedData.skipSave) {
+      try {
+        const admin = createAdminClient();
+        await admin.from('scraped_profiles').upsert(
+          {
+            linkedin_url: validatedData.url,
+            name: validatedData.name || scrapedName,
+            email: validatedData.email || null,
+            graduation_year: validatedData.graduationYear || null,
+            diploma: validatedData.diploma || null,
+            title,
+            company,
+            avatar_url,
+            education,
+            scraped_at: new Date().toISOString(),
+          },
+          { onConflict: 'linkedin_url' }
+        );
+      } catch (dbError) {
+        console.error('[SCRAPE_LINKEDIN] DB save failed (non-blocking):', dbError);
+      }
     }
 
     // 5. Return Result

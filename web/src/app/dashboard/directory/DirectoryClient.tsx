@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { AlumniEntry, ScrapedEntry } from '@/app/api/alumni/directory/route'
 import { CsvAlumniRow } from '@/app/api/alumni/csv-urls/route'
 import { scrapingClient } from '@/lib/services/scraping/client'
+import { inviteAndEnrichAlumni, updateAlumniAfterScrape, getAlumniWithLinkedin } from '@/lib/services/user-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -43,7 +44,6 @@ function groupByPromo(rows: DirectoryRow[]): Map<string, DirectoryRow[]> {
     if (!map.has(key)) map.set(key, [])
     map.get(key)!.push(row)
   }
-  // Sort: descending years first, then "Sans promo"
   const sorted = new Map<string, DirectoryRow[]>()
   const years = [...map.keys()]
     .filter((k) => k !== 'Sans promo')
@@ -127,8 +127,12 @@ function DirectoryTable({ rows }: { rows: DirectoryRow[] }) {
                 )}
               </TableCell>
               <TableCell className="text-sm">{degree || '—'}</TableCell>
-              <TableCell className="text-sm">{position || '—'}</TableCell>
-              <TableCell className="text-sm">{company || '—'}</TableCell>
+              <TableCell className="text-sm">
+                {position || <span className="text-muted-foreground italic">N/A</span>}
+              </TableCell>
+              <TableCell className="text-sm">
+                {company || <span className="text-muted-foreground italic">N/A</span>}
+              </TableCell>
               <TableCell>
                 {row.type === 'alumni' ? (
                   <Badge variant="default" className="bg-blue-600 hover:bg-blue-600">
@@ -147,9 +151,10 @@ function DirectoryTable({ rows }: { rows: DirectoryRow[] }) {
 }
 
 export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
-  const [profiles] = useState<AlumniEntry[]>(initialProfiles)
-  const [scraped, setScraped] = useState<ScrapedEntry[]>(initialScraped)
+  const [profiles, setProfiles] = useState<AlumniEntry[]>(initialProfiles)
+  const [scraped] = useState<ScrapedEntry[]>(initialScraped)
   const [csvRows, setCsvRows] = useState<CsvAlumniRow[]>([])
+  const [existingToScrape, setExistingToScrape] = useState<AlumniEntry[]>([])
   const [isLoadingCsv, setIsLoadingCsv] = useState(false)
   const [isScrapingCsv, setIsScrapingCsv] = useState(false)
   const [scrapeProgress, setScrapeProgress] = useState(0)
@@ -169,46 +174,97 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
   const loadCsvUrls = async () => {
     setIsLoadingCsv(true)
     try {
-      const res = await fetch('/api/alumni/csv-urls')
-      const data = await res.json()
-      if (data.rows) setCsvRows(data.rows)
+      const [csvRes, existing] = await Promise.all([
+        fetch('/api/alumni/csv-urls').then((r) => r.json()),
+        getAlumniWithLinkedin(),
+      ])
+      if (csvRes.rows) setCsvRows(csvRes.rows)
+      // Only enrich existing alumni who are missing company/position
+      setExistingToScrape(
+        existing.filter((a) => !a.current_company && !a.current_position && a.linkedin_url)
+      )
     } catch {
-      alert('Erreur lors du chargement du CSV')
+      alert('Erreur lors du chargement')
     } finally {
       setIsLoadingCsv(false)
     }
   }
 
   const handleScrape = useCallback(async () => {
-    if (csvRows.length === 0) return
+    const total = csvRows.length + existingToScrape.length
+    if (total === 0) return
     setIsScrapingCsv(true)
     setScrapeProgress(0)
 
-    for (let i = 0; i < csvRows.length; i++) {
-      const row = csvRows[i]
-      const response = await scrapingClient.scrapeLinkedInProfile(row.linkedinUrl, row)
+    let done = 0
+
+    // 1. Process CSV rows (invite + enrich)
+    for (const row of csvRows) {
+      const response = await scrapingClient.scrapeLinkedInProfile(row.linkedinUrl, row, { skipSave: true })
+      const scrapedData = response.success && response.data
+        ? { company: response.data.company, position: response.data.title, avatar_url: response.data.avatar_url }
+        : {}
+
+      const result = await inviteAndEnrichAlumni(
+        {
+          email: row.email,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          graduationYear: row.graduationYear,
+          diploma: row.diploma,
+          linkedinUrl: row.linkedinUrl,
+        },
+        scrapedData
+      )
+
+      if ('success' in result && result.success) {
+        setProfiles((prev) => {
+          const idx = prev.findIndex((p) => p.email === result.profile.email)
+          if (idx >= 0) {
+            const updated = [...prev]
+            updated[idx] = result.profile
+            return updated
+          }
+          return [...prev, result.profile]
+        })
+      }
+
+      done++
+      setScrapeProgress(done)
+    }
+
+    // 2. Enrich existing alumni who have linkedin_url but no company/position
+    for (const alumni of existingToScrape) {
+      const response = await scrapingClient.scrapeLinkedInProfile(
+        alumni.linkedin_url!,
+        undefined,
+        { skipSave: true }
+      )
 
       if (response.success && response.data) {
-        const newEntry: ScrapedEntry = {
-          id: crypto.randomUUID(),
-          name: response.data.name,
-          email: row.email || null,
-          graduation_year: row.graduationYear,
-          title: response.data.title,
-          company: response.data.company,
-          linkedin_url: response.data.linkedin_url,
-          avatar_url: response.data.avatar_url ?? null,
-          education: row.diploma || response.data.education,
-          type: 'scraped',
-        }
-        setScraped((prev) => [...prev, newEntry])
+        const { company, title: position, avatar_url } = response.data
+        await updateAlumniAfterScrape(alumni.id, {
+          current_company: company || null,
+          current_position: position || null,
+          avatar_url: avatar_url || null,
+        })
+        setProfiles((prev) =>
+          prev.map((p) =>
+            p.id === alumni.id
+              ? { ...p, current_company: company || null, current_position: position || null, avatar_url: avatar_url || null }
+              : p
+          )
+        )
       }
-      setScrapeProgress(i + 1)
+
+      done++
+      setScrapeProgress(done)
     }
 
     setIsScrapingCsv(false)
     setCsvRows([])
-  }, [csvRows])
+    setExistingToScrape([])
+  }, [csvRows, existingToScrape])
 
   return (
     <div className="space-y-10">
@@ -295,31 +351,42 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
                 Charger la base source
               </Button>
 
-              <Button
-                onClick={handleScrape}
-                disabled={csvRows.length === 0 || isScrapingCsv}
-                className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all"
-              >
-                {isScrapingCsv ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Processus {scrapeProgress}/{csvRows.length} profils...
-                  </>
-                ) : (
-                  <>
-                    <GraduationCap className="mr-2 h-5 w-5" />
-                    {csvRows.length > 0
-                      ? `Lancer le Scraping (${csvRows.length})`
-                      : 'Prêt à Scraper'}
-                  </>
-                )}
-              </Button>
+              {(() => {
+                const total = csvRows.length + existingToScrape.length
+                return (
+                  <Button
+                    onClick={handleScrape}
+                    disabled={total === 0 || isScrapingCsv}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isScrapingCsv ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {scrapeProgress}/{total} scrapés...
+                      </>
+                    ) : (
+                      <>
+                        <GraduationCap className="mr-2 h-4 w-4" />
+                        {total > 0 ? `Scraper ${total} profil${total > 1 ? 's' : ''}` : 'Scraper'}
+                      </>
+                    )}
+                  </Button>
+                )
+              })()}
             </div>
 
-            {csvRows.length > 0 && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-xl border border-emerald-100 dark:border-emerald-800/50 w-fit animate-in fade-in slide-in-from-left-4">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-sm font-bold">{csvRows.length} profils chargés et prêts</span>
+            {(csvRows.length > 0 || existingToScrape.length > 0) && (
+              <div className="text-sm text-blue-600 font-medium space-y-1">
+                {csvRows.length > 0 && (
+                  <div>
+                    {csvRows.length} nouveau{csvRows.length > 1 ? 'x' : ''} alumni depuis le CSV
+                  </div>
+                )}
+                {existingToScrape.length > 0 && (
+                  <div>
+                    {existingToScrape.length} alumni existant{existingToScrape.length > 1 ? 's' : ''} à enrichir (pas de poste/entreprise)
+                  </div>
+                )}
               </div>
             )}
           </div>

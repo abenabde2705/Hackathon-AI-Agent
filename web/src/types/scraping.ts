@@ -9,6 +9,8 @@ export const LinkedInScrapeRequestSchema = z.object({
   name: z.string().optional(),
   graduationYear: z.number().int().optional(),
   diploma: z.string().optional(),
+  // When true, do not save to scraped_profiles (used by the CSV invite+enrich flow)
+  skipSave: z.boolean().optional(),
 });
 
 export type LinkedInScrapeRequest = z.infer<typeof LinkedInScrapeRequestSchema>;

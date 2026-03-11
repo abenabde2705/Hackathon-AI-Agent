@@ -30,18 +30,29 @@ export async function getDirectoryEntries(): Promise<{ profiles: AlumniEntry[]; 
     type: 'alumni',
   }));
 
-  const scraped: ScrapedEntry[] = (scrapedResult.data ?? []).map((s) => ({
-    id: s.id,
-    name: s.name,
-    email: s.email ?? null,
-    graduation_year: s.graduation_year ?? null,
-    title: s.title,
-    company: s.company,
-    linkedin_url: s.linkedin_url,
-    avatar_url: s.avatar_url,
-    education: s.diploma ?? s.education,
-    type: 'scraped',
-  }));
+  // Deduplicate: exclude scraped entries whose email or linkedin_url
+  // already matches an existing alumni profile
+  const alumniEmails = new Set(profiles.map((p) => p.email).filter(Boolean))
+  const alumniLinkedins = new Set(profiles.map((p) => p.linkedin_url).filter(Boolean))
+
+  const scraped: ScrapedEntry[] = (scrapedResult.data ?? [])
+    .filter((s) => {
+      if (s.email && alumniEmails.has(s.email)) return false
+      if (s.linkedin_url && alumniLinkedins.has(s.linkedin_url)) return false
+      return true
+    })
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      email: s.email ?? null,
+      graduation_year: s.graduation_year ?? null,
+      title: s.title,
+      company: s.company,
+      linkedin_url: s.linkedin_url,
+      avatar_url: s.avatar_url,
+      education: s.diploma ?? s.education,
+      type: 'scraped',
+    }));
 
   return { profiles, scraped };
 }
