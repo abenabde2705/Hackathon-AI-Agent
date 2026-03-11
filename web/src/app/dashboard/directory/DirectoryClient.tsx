@@ -10,6 +10,7 @@ import { inviteAndEnrichAlumni, updateAlumniAfterScrape, getAlumniWithLinkedin }
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -266,70 +267,88 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
   }, [csvRows, existingToScrape])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       {/* Header */}
-      <div className="flex items-end justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
             Annuaire Alumni
-          </h2>
-          <p className="text-zinc-500 mt-1">
-            Tous les alumni, regroupés par promotion.
+          </h1>
+          <p className="text-zinc-500 dark:text-zinc-400">
+            Explorez votre réseau de diplômés par promotion.
           </p>
         </div>
-        <div className="flex gap-4 text-sm text-center">
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl px-4 py-3 border border-blue-100">
-            <div className="text-2xl font-bold text-blue-700">{profiles.length + scraped.length}</div>
-            <div className="text-blue-600 text-xs font-medium">Total</div>
+        
+        <div className="grid grid-cols-2 sm:flex items-center gap-3">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl px-5 py-3 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm flex flex-col items-center justify-center min-w-[100px]">
+            <span className="text-2xl font-black text-blue-600 leading-none">
+              {profiles.length + scraped.length}
+            </span>
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Total</span>
           </div>
-          <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-xl px-4 py-3 border border-zinc-100">
-            <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-100">{profiles.length}</div>
-            <div className="text-zinc-500 text-xs font-medium">Alumni</div>
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl px-5 py-3 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm flex flex-col items-center justify-center min-w-[100px]">
+            <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 leading-none">
+              {profiles.length}
+            </span>
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Alumni</span>
           </div>
-          <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-xl px-4 py-3 border border-zinc-100">
-            <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-100">{scraped.length}</div>
-            <div className="text-zinc-500 text-xs font-medium">Scrapés</div>
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl px-5 py-3 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm flex flex-col items-center justify-center min-w-[100px]">
+            <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 leading-none">
+              {scraped.length}
+            </span>
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Scrapés</span>
           </div>
-          <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-xl px-4 py-3 border border-zinc-100">
-            <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-100">{totalPromos}</div>
-            <div className="text-zinc-500 text-xs font-medium">Promos</div>
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl px-5 py-3 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm flex flex-col items-center justify-center min-w-[100px]">
+            <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 leading-none">
+              {totalPromos}
+            </span>
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Promos</span>
           </div>
         </div>
       </div>
 
-      {/* CSV Import (collapsible) */}
-      <div className="border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden">
+      {/* CSV Import (modernized) */}
+      <div className="group rounded-3xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white dark:bg-zinc-900 overflow-hidden shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300">
         <button
-          className="w-full flex items-center justify-between px-5 py-4 bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+          className="w-full flex items-center justify-between px-8 py-6 bg-zinc-50/50 dark:bg-zinc-800/20 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 transition-colors"
           onClick={() => setCsvOpen((v) => !v)}
         >
-          <div className="flex items-center gap-3 font-semibold text-zinc-800 dark:text-zinc-100">
-            <FileText className="h-4 w-4 text-blue-600" />
-            Scraper depuis alumni_linkedin_profiles.csv
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <FileText className="h-5 w-5 text-blue-600" />
+            </div>
+            <div className="text-left">
+              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">Collecte Automatisée</h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">Scraper depuis alumni_linkedin_profiles.csv</p>
+            </div>
           </div>
-          {csvOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          <div className={cn("w-8 h-8 rounded-lg bg-zinc-200/50 dark:bg-zinc-800/50 flex items-center justify-center transition-transform duration-300", csvOpen && "rotate-180")}>
+            <ChevronDown className="h-4 w-4 text-zinc-500" />
+          </div>
         </button>
 
         {csvOpen && (
-          <div className="px-5 py-4 space-y-4 bg-white dark:bg-zinc-900">
-            <p className="text-sm text-muted-foreground">
-              Charge les URLs depuis <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">alumni_linkedin_profiles.csv</code>,
-              sélectionne la promo, puis lance le scraping.
-            </p>
+          <div className="px-8 py-8 space-y-6 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 animate-in slide-in-from-top-4 duration-300">
+            <div className="max-w-2xl">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed">
+                Importez massivement des données depuis le fichier source <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded-lg text-blue-600 font-bold">alumni_linkedin_profiles.csv</code>. 
+                Le système scannera les URLs LinkedIn pour enrichir les profils.
+              </p>
+            </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 items-end">
+            <div className="flex flex-col sm:flex-row gap-4 items-center">
               <Button
                 variant="outline"
                 onClick={loadCsvUrls}
                 disabled={isLoadingCsv || isScrapingCsv}
-                className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                className="h-12 px-6 border-zinc-200 dark:border-zinc-700 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 font-bold transition-all shadow-sm group"
               >
                 {isLoadingCsv ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 ) : (
-                  <FileText className="mr-2 h-4 w-4" />
+                  <FileText className="mr-2 h-5 w-5 text-zinc-400 group-hover:text-blue-600 transition-colors" />
                 )}
-                Charger le CSV
+                Charger la base source
               </Button>
 
               {(() => {
@@ -374,22 +393,28 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
         )}
       </div>
 
-      {/* Promo tabs */}
+      {/* Promo tabs (modernized) */}
       {tabKeys.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 bg-zinc-50 dark:bg-zinc-900/30 rounded-3xl border border-zinc-100 dark:border-zinc-800">
-          <Users className="h-12 w-12 text-zinc-300 mb-4" />
-          <p className="text-zinc-500 font-medium">Aucun alumni pour l&apos;instant.</p>
-          <p className="text-sm text-zinc-400 mt-1">Importez un CSV ou invitez des alumni.</p>
+        <div className="flex flex-col items-center justify-center py-32 bg-zinc-50/50 dark:bg-zinc-900/30 rounded-[40px] border border-dashed border-zinc-200 dark:border-zinc-800">
+          <div className="w-20 h-20 rounded-3xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-6">
+            <Users className="h-10 w-10 text-zinc-300" />
+          </div>
+          <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Annuaire vide</h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-[280px] text-center">Utilisez le module de collecte ci-dessus pour remplir votre base.</p>
         </div>
       ) : (
-        <Tabs defaultValue={tabKeys[0]}>
-          <TabsList className="flex-wrap h-auto gap-1 bg-zinc-100 dark:bg-zinc-800 p-1">
+        <Tabs defaultValue={tabKeys[0]} className="space-y-6">
+          <TabsList className="h-auto p-1.5 bg-zinc-100/80 dark:bg-zinc-800/80 backdrop-blur-sm rounded-2xl flex-wrap justify-start gap-1">
             {tabKeys.map((key) => {
               const count = grouped.get(key)!.length
               return (
-                <TabsTrigger key={key} value={key} className="text-xs sm:text-sm">
+                <TabsTrigger 
+                  key={key} 
+                  value={key} 
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-900 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-md transition-all group"
+                >
                   {key === 'Sans promo' ? 'Sans promo' : `Promo ${key}`}
-                  <span className="ml-1.5 text-xs bg-zinc-200 dark:bg-zinc-700 rounded-full px-1.5 py-0.5">
+                  <span className="ml-2.5 px-2 py-0.5 rounded-lg bg-zinc-200/50 dark:bg-zinc-700/50 text-[10px] font-black group-data-[state=active]:bg-blue-50 dark:group-data-[state=active]:bg-blue-900/30">
                     {count}
                   </span>
                 </TabsTrigger>
@@ -398,9 +423,84 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
           </TabsList>
 
           {tabKeys.map((key) => (
-            <TabsContent key={key} value={key} className="mt-4">
-              <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-auto">
-                <DirectoryTable rows={grouped.get(key)!} />
+            <TabsContent key={key} value={key} className="mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="rounded-3xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent border-zinc-100 dark:border-zinc-800/50">
+                        <TableHead className="w-12 px-6 py-5"></TableHead>
+                        <TableHead className="px-6 py-5 text-xs font-black text-zinc-400 uppercase tracking-widest">Diplômé</TableHead>
+                        <TableHead className="px-6 py-5 text-xs font-black text-zinc-400 uppercase tracking-widest">Email</TableHead>
+                        <TableHead className="px-6 py-5 text-xs font-black text-zinc-400 uppercase tracking-widest">Carrière</TableHead>
+                        <TableHead className="px-6 py-5 text-xs font-black text-zinc-400 uppercase tracking-widest">Type</TableHead>
+                        <TableHead className="w-16 px-6"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {grouped.get(key)!.map((row) => {
+                        const name = getDisplayName(row)
+                        const position = row.type === 'alumni' ? row.current_position : row.title
+                        const company = row.type === 'alumni' ? row.current_company : row.company
+                        return (
+                          <TableRow key={row.id} className="group border-zinc-100 dark:border-zinc-800/50 hover:bg-blue-50/20 dark:hover:bg-blue-900/10 transition-colors">
+                            <TableCell className="px-6 py-5">
+                              <div className="relative">
+                                <AvatarCell url={row.avatar_url} name={name} />
+                                {row.type === 'alumni' && (
+                                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-600 border-2 border-white dark:border-zinc-900 rounded-full" />
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="px-6 py-5">
+                              <span className="font-bold text-zinc-900 dark:text-zinc-50 text-[15px] group-hover:text-blue-600 transition-colors">
+                                {name}
+                              </span>
+                            </TableCell>
+                            <TableCell className="px-6 py-5">
+                              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                                {row.email || '—'}
+                              </span>
+                            </TableCell>
+                            <TableCell className="px-6 py-5">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                                  {position || '—'}
+                                </span>
+                                <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider mt-0.5">
+                                  {company || 'Sans entreprise'}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="px-6 py-5">
+                              {row.type === 'alumni' ? (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-[10px] font-black text-blue-700 dark:text-blue-300 uppercase tracking-wider border border-blue-100 dark:border-blue-800/50">
+                                  Alumni
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-[10px] font-black text-zinc-500 uppercase tracking-wider border border-zinc-200 dark:border-zinc-700">
+                                  Prospect
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="px-6 py-5">
+                              {row.linkedin_url && (
+                                <a
+                                  href={row.linkedin_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all border border-transparent hover:border-blue-100"
+                                >
+                                  <ExternalLink className="h-4.5 w-4.5" />
+                                </a>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             </TabsContent>
           ))}
