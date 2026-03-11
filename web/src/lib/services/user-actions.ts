@@ -71,32 +71,33 @@ export async function inviteUser(userData: {
       }
     )
 
-    // If user already exists in auth (e.g. deleted from dashboard but not fully purged),
-    // find them and regenerate an invite link so they can still set their password.
+    // Track invite link (only generated for existing users — calling generateLink after
+    // inviteUserByEmail for a NEW user would invalidate the emailed token)
+    let inviteLink: string | null = null
+
+    // If user already exists in auth, generate a fresh invite link manually
     if (inviteError) {
       if (inviteError.message.toLowerCase().includes('already been registered')) {
         const { data: listData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
         const existingUser = listData?.users.find((u) => u.email === userData.email)
         if (!existingUser) return { error: inviteError.message }
 
+        try {
+          const { data: linkData } = await adminClient.auth.admin.generateLink({
+            type: 'invite',
+            email: userData.email,
+            options: { redirectTo },
+          })
+          inviteLink = linkData?.properties?.action_link ?? null
+        } catch {
+          // Non-blocking
+        }
+
         inviteData = { user: existingUser } as typeof inviteData
         inviteError = null
       } else {
         return { error: inviteError.message }
       }
-    }
-
-    // 3. Generate the invite link (always, so staff can share it manually if email fails)
-    let inviteLink: string | null = null
-    try {
-      const { data: linkData } = await adminClient.auth.admin.generateLink({
-        type: 'invite',
-        email: userData.email,
-        options: { redirectTo },
-      })
-      inviteLink = linkData?.properties?.action_link ?? null
-    } catch {
-      // Non-blocking: link generation failure doesn't prevent the invite
     }
 
     // 4. Update the profile with metadata
