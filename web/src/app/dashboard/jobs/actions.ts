@@ -45,3 +45,33 @@ export async function createJob(formData: FormData) {
   revalidatePath('/dashboard/jobs')
   redirect('/dashboard/jobs')
 }
+
+export async function deleteJob(id: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  // Check role
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile || (profile.role !== 'admin' && profile.role !== 'staff')) {
+    throw new Error('Permission denied')
+  }
+
+  const { error } = await supabase
+    .from('jobs')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath('/dashboard/jobs')
+  redirect('/dashboard/jobs')
+}
