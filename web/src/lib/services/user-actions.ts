@@ -5,6 +5,73 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import type { AlumniEntry } from '@/app/api/alumni/directory/route'
 
+export async function deleteUser(userId: string) {
+  try {
+    const supabase = await createClient()
+    const adminClient = createAdminClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const { data: currentProfile } = await supabase
+      .from('profiles').select('role').eq('id', user.id).single()
+
+    if (!currentProfile || (currentProfile.role !== 'admin' && currentProfile.role !== 'staff')) {
+      throw new Error('Unauthorized')
+    }
+
+    const { data: targetProfile } = await adminClient
+      .from('profiles').select('role').eq('id', userId).single()
+
+    if (currentProfile.role === 'staff' && targetProfile?.role !== 'alumni') {
+      return { error: 'Permission denied: Staff can only delete Alumni.' }
+    }
+
+    await adminClient.from('profiles').delete().eq('id', userId)
+    await adminClient.auth.admin.deleteUser(userId)
+
+    revalidatePath('/dashboard')
+    revalidatePath('/admin/staff')
+    revalidatePath('/dashboard/directory')
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message || 'Unexpected error' }
+  }
+}
+
+export async function updateUser(userId: string, data: {
+  first_name?: string
+  last_name?: string
+  graduation_year?: number | null
+  degree?: string | null
+  linkedin_url?: string | null
+}) {
+  try {
+    const supabase = await createClient()
+    const adminClient = createAdminClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const { data: currentProfile } = await supabase
+      .from('profiles').select('role').eq('id', user.id).single()
+
+    if (!currentProfile || (currentProfile.role !== 'admin' && currentProfile.role !== 'staff')) {
+      throw new Error('Unauthorized')
+    }
+
+    const { error } = await adminClient.from('profiles').update(data).eq('id', userId)
+    if (error) return { error: error.message }
+
+    revalidatePath('/dashboard')
+    revalidatePath('/admin/staff')
+    revalidatePath('/dashboard/directory')
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message || 'Unexpected error' }
+  }
+}
+
 export async function getProfiles() {
   const supabase = await createClient()
   const { data: profiles, error } = await supabase
