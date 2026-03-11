@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import { Users, FileText, Loader2, ExternalLink, ChevronDown, ChevronUp, GraduationCap, Search } from 'lucide-react'
+import { Users, FileText, Loader2, ExternalLink, ChevronDown, ChevronUp, GraduationCap } from 'lucide-react'
 import Image from 'next/image'
 import { AlumniEntry, ScrapedEntry } from '@/app/api/alumni/directory/route'
 import { CsvAlumniRow } from '@/app/api/alumni/csv-urls/route'
 import { scrapingClient } from '@/lib/services/scraping/client'
-import { updateAlumniAfterScrape } from '@/lib/services/user-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -81,15 +80,7 @@ function AvatarCell({ url, name }: { url?: string | null; name: string }) {
   )
 }
 
-function DirectoryTable({
-  rows,
-  scrapingIds,
-  onScrape,
-}: {
-  rows: DirectoryRow[]
-  scrapingIds: Set<string>
-  onScrape: (row: DirectoryRow) => void
-}) {
+function DirectoryTable({ rows }: { rows: DirectoryRow[] }) {
   return (
     <Table>
       <TableHeader>
@@ -102,7 +93,6 @@ function DirectoryTable({
           <TableHead>Poste</TableHead>
           <TableHead>Entreprise</TableHead>
           <TableHead>Type</TableHead>
-          <TableHead></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -111,7 +101,6 @@ function DirectoryTable({
           const degree = row.type === 'alumni' ? row.degree : row.education
           const position = row.type === 'alumni' ? row.current_position : row.title
           const company = row.type === 'alumni' ? row.current_company : row.company
-          const isScraping = scrapingIds.has(row.id)
           return (
             <TableRow key={row.id}>
               <TableCell>
@@ -137,18 +126,10 @@ function DirectoryTable({
               </TableCell>
               <TableCell className="text-sm">{degree || '—'}</TableCell>
               <TableCell className="text-sm">
-                {position ? (
-                  position
-                ) : (
-                  <span className="text-muted-foreground italic">N/A</span>
-                )}
+                {position || <span className="text-muted-foreground italic">N/A</span>}
               </TableCell>
               <TableCell className="text-sm">
-                {company ? (
-                  company
-                ) : (
-                  <span className="text-muted-foreground italic">N/A</span>
-                )}
+                {company || <span className="text-muted-foreground italic">N/A</span>}
               </TableCell>
               <TableCell>
                 {row.type === 'alumni' ? (
@@ -157,24 +138,6 @@ function DirectoryTable({
                   </Badge>
                 ) : (
                   <Badge variant="secondary">Scrapé</Badge>
-                )}
-              </TableCell>
-              <TableCell>
-                {row.linkedin_url && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={isScraping}
-                    onClick={() => onScrape(row)}
-                    className="text-xs h-7 px-2 gap-1"
-                  >
-                    {isScraping ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Search className="h-3 w-3" />
-                    )}
-                    {!isScraping && 'Scraper'}
-                  </Button>
                 )}
               </TableCell>
             </TableRow>
@@ -186,9 +149,8 @@ function DirectoryTable({
 }
 
 export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
-  const [profiles, setProfiles] = useState<AlumniEntry[]>(initialProfiles)
+  const [profiles] = useState<AlumniEntry[]>(initialProfiles)
   const [scraped, setScraped] = useState<ScrapedEntry[]>(initialScraped)
-  const [scrapingIds, setScrapingIds] = useState<Set<string>>(new Set())
   const [csvRows, setCsvRows] = useState<CsvAlumniRow[]>([])
   const [isLoadingCsv, setIsLoadingCsv] = useState(false)
   const [isScrapingCsv, setIsScrapingCsv] = useState(false)
@@ -205,52 +167,6 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
     const totalPromos = tabKeys.filter((k) => k !== 'Sans promo').length
     return { grouped, tabKeys, totalPromos }
   }, [profiles, scraped])
-
-  const handleRowScrape = useCallback(async (row: DirectoryRow) => {
-    if (!row.linkedin_url) return
-    setScrapingIds((prev) => new Set([...prev, row.id]))
-
-    try {
-      const response = await scrapingClient.scrapeLinkedInProfile(row.linkedin_url)
-      if (response.success && response.data) {
-        const { title, company } = response.data
-
-        if (row.type === 'alumni') {
-          setProfiles((prev) =>
-            prev.map((p) =>
-              p.id === row.id
-                ? {
-                    ...p,
-                    current_position: title || p.current_position,
-                    current_company: company || p.current_company,
-                  }
-                : p
-            )
-          )
-          await updateAlumniAfterScrape(row.id, {
-            current_position: title,
-            current_company: company,
-          })
-        } else {
-          setScraped((prev) =>
-            prev.map((s) =>
-              s.id === row.id
-                ? { ...s, title: title || s.title, company: company || s.company }
-                : s
-            )
-          )
-        }
-      }
-    } catch (err) {
-      console.error('Row scrape error:', err)
-    } finally {
-      setScrapingIds((prev) => {
-        const next = new Set(prev)
-        next.delete(row.id)
-        return next
-      })
-    }
-  }, [])
 
   const loadCsvUrls = async () => {
     setIsLoadingCsv(true)
@@ -270,31 +186,48 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
     setIsScrapingCsv(true)
     setScrapeProgress(0)
 
+    const alumniEmails = new Set(profiles.map((p) => p.email).filter(Boolean))
+    const alumniLinkedins = new Set(profiles.map((p) => p.linkedin_url).filter(Boolean))
+
     for (let i = 0; i < csvRows.length; i++) {
       const row = csvRows[i]
-      const response = await scrapingClient.scrapeLinkedInProfile(row.linkedinUrl, row)
 
-      if (response.success && response.data) {
-        const newEntry: ScrapedEntry = {
-          id: crypto.randomUUID(),
-          name: response.data.name,
-          email: row.email || null,
-          graduation_year: row.graduationYear,
-          title: response.data.title,
-          company: response.data.company,
-          linkedin_url: response.data.linkedin_url,
-          avatar_url: response.data.avatar_url ?? null,
-          education: row.diploma || response.data.education,
-          type: 'scraped',
+      // Skip if this person already exists as an alumni
+      const isDuplicate =
+        (row.email && alumniEmails.has(row.email)) ||
+        (row.linkedinUrl && alumniLinkedins.has(row.linkedinUrl))
+
+      if (!isDuplicate) {
+        const response = await scrapingClient.scrapeLinkedInProfile(row.linkedinUrl, row)
+
+        if (response.success && response.data) {
+          const newEntry: ScrapedEntry = {
+            id: crypto.randomUUID(),
+            name: response.data.name,
+            email: row.email || null,
+            graduation_year: row.graduationYear,
+            title: response.data.title,
+            company: response.data.company,
+            linkedin_url: response.data.linkedin_url,
+            avatar_url: response.data.avatar_url ?? null,
+            education: row.diploma || response.data.education,
+            type: 'scraped',
+          }
+          setScraped((prev) => {
+            // Also deduplicate within already-scraped entries
+            const alreadyScraped =
+              prev.some((s) => s.email && s.email === newEntry.email) ||
+              prev.some((s) => s.linkedin_url && s.linkedin_url === newEntry.linkedin_url)
+            return alreadyScraped ? prev : [...prev, newEntry]
+          })
         }
-        setScraped((prev) => [...prev, newEntry])
       }
       setScrapeProgress(i + 1)
     }
 
     setIsScrapingCsv(false)
     setCsvRows([])
-  }, [csvRows])
+  }, [csvRows, profiles])
 
   return (
     <div className="space-y-6">
@@ -419,11 +352,7 @@ export function DirectoryClient({ initialProfiles, initialScraped }: Props) {
           {tabKeys.map((key) => (
             <TabsContent key={key} value={key} className="mt-4">
               <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-auto">
-                <DirectoryTable
-                  rows={grouped.get(key)!}
-                  scrapingIds={scrapingIds}
-                  onScrape={handleRowScrape}
-                />
+                <DirectoryTable rows={grouped.get(key)!} />
               </div>
             </TabsContent>
           ))}
